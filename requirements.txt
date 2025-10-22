@@ -21,6 +21,9 @@ aiohttp==3.13.1
 beautifulsoup4==4.14.2
 lxml==6.0.2
 
+# Web dashboard
+Flask==3.0.3
+
 # Development and testing (optional)
 pytest==8.4.2
 pytest-asyncio==1.2.0
