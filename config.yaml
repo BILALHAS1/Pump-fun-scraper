@@ -1,32 +1,38 @@
-# Pump.fun Scraper Configuration
+# PumpPortal.fun Official API Scraper Configuration
 
-# API Configuration
+# Official API Configuration
 base_url: "https://pump.fun"
-api_base_url: "https://frontend-api.pump.fun"
-timeout_seconds: 30
+api_base_url: "https://pumpportal.fun"  # Official PumpPortal API
+websocket_url: "wss://pumpportal.fun/api/data"  # Official WebSocket API
+api_key: null  # Optional API key for enhanced features (get from pumpportal.fun)
+timeout_seconds: 60
 api_page_size: 100
-api_extra_headers:
-  Sec-Fetch-Dest: "empty"
-  Sec-Fetch-Mode: "cors"
-  Sec-Fetch-Site: "same-site"
+api_extra_headers: {}
 
 # Proxy Configuration
 proxy_url: null  # Example: "http://user:pass@proxy:8000"
 playwright_proxy: null  # Optional proxy for Playwright browser
 
-# Rate Limiting Settings
-rate_limit_rpm: 30  # Requests per minute
-rate_limit_rph: 1000  # Requests per hour
-request_delay: 2.0  # Delay between requests in seconds
+# WebSocket Rate Limiting (for message processing)
+rate_limit_rpm: 100  # Messages per minute (WebSocket can handle more)
+rate_limit_rph: 5000  # Messages per hour
+request_delay: 0.1  # Delay between WebSocket operations
 
-# Scraping Limits
-max_tokens: 500  # Maximum tokens to scrape in one session
-max_tokens_for_transactions: 50  # Max tokens to get transaction data for
-transactions_per_token: 100  # Number of transactions per token
+# WebSocket & Data Collection Settings
+websocket_reconnect_attempts: 5  # Max WebSocket reconnection attempts
+websocket_reconnect_delay: 5.0  # Delay between reconnection attempts
+websocket_ping_interval: 30.0  # WebSocket ping interval (seconds)
+websocket_timeout: 60.0  # WebSocket connection timeout (seconds)
+data_collection_duration: 300  # Duration to collect real-time data (seconds)
+
+# Scraping Limits (for compatibility)
+max_tokens: 1000  # Maximum tokens to collect in one session
+max_tokens_for_transactions: 100  # Max tokens to get transaction data for
+transactions_per_token: 200  # Number of transactions per token
 new_launches_hours: 24  # Hours to look back for new launches
 
-# Browser Configuration (for web scraping fallback)
-use_browser_fallback: true  # Use browser scraping if API fails
+# Legacy Browser Configuration (deprecated - now uses official WebSocket API)
+use_browser_fallback: false  # Deprecated - now uses official WebSocket API
 headless_browser: true  # Run browser in headless mode
 user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 preload_browser_cookies: true

@@ -1,20 +1,29 @@
-# Pump.fun Python Scraper
+# PumpPortal.fun Official API Python Scraper
 
-A comprehensive Python scraper for collecting data from pump.fun, including token information, transaction data, new token launches, and trading activity with proper rate limiting and error handling.
+A comprehensive Python scraper that uses the **official PumpPortal.fun WebSocket API** to collect real-time token information, transaction data, new token launches, and trading activity with proper error handling and rate limiting.
+
+## 🚀 New: Official API Integration
+
+This scraper has been rebuilt from the ground up to use the **official PumpPortal.fun API** instead of web scraping, providing:
+
+- **Real-time data** via WebSocket connections
+- **No 530 errors** - uses official endpoints  
+- **Higher reliability** and data accuracy
+- **Better performance** with real-time streaming
+- **Official API support** with optional API key for enhanced features
 
 ## Features
 
-- **Multi-source data collection**: Scrapes token info, transactions, new launches, and trading volumes
-- **Dual approach**: API calls with web scraping fallback for reliability
-- **Bot mitigation**: Browser-backed requests, realistic headers, and adaptive retries to avoid 530/Cloudflare blocks
-- **Rate limiting**: Built-in rate limiting to avoid being blocked
-- **Multiple output formats**: Saves data in JSON, CSV, and SQLite database
-- **Comprehensive logging**: Detailed logging with statistics tracking
-- **Error handling**: Robust error handling and retry mechanisms
-- **Configurable**: Flexible configuration via YAML file
-- **Asynchronous**: Fast async/await implementation
-- **Timestamps**: All data includes scraping timestamps
-- **Data deduplication**: Prevents duplicate entries
+- **Official API Integration**: Uses PumpPortal.fun WebSocket API (`wss://pumpportal.fun/api/data`)
+- **Real-time Data Streams**: Live token launches, trades, and migration events
+- **Multiple Data Types**: Token info, transactions, new launches, trading volumes, timestamps
+- **Robust Connection Management**: Auto-reconnection, error handling, graceful shutdown
+- **API Key Support**: Optional API key for enhanced features and higher limits
+- **Multiple Output Formats**: Saves data in JSON, CSV, and SQLite database
+- **Comprehensive Logging**: Detailed logging with session statistics
+- **Configurable Duration**: Set custom data collection periods
+- **Rate Limiting**: Built-in rate limiting for WebSocket messages
+- **Data Deduplication**: Prevents duplicate entries
 
 ## Installation
 
@@ -28,7 +37,7 @@ A comprehensive Python scraper for collecting data from pump.fun, including toke
 1. **Clone or download the project**
    ```bash
    git clone <repository-url>
-   cd pump-fun-scraper
+   cd pumpportal-scraper
    ```
 
 2. **Install Python dependencies**
@@ -36,129 +45,113 @@ A comprehensive Python scraper for collecting data from pump.fun, including toke
    pip install -r requirements.txt
    ```
 
-3. **Install Playwright browsers** (for web scraping fallback)
-   ```bash
-   playwright install chromium
-   ```
-
-4. **Create data and logs directories**
+3. **Create data and logs directories**
    ```bash
    mkdir -p data logs
    ```
+
+4. **(Optional) Get PumpPortal API Key**
+   - Visit [pumpportal.fun](https://pumpportal.fun) to get an API key
+   - Add it to your config or use `--api-key` flag for enhanced features
 
 ## Configuration
 
 The scraper uses a YAML configuration file (`config.yaml`) for settings. Key configuration options:
 
 ```yaml
-# API Configuration
-base_url: "https://pump.fun"
-api_base_url: "https://frontend-api.pump.fun"
-timeout_seconds: 30
-api_page_size: 100
+# Official API Configuration
+api_base_url: "https://pumpportal.fun"
+websocket_url: "wss://pumpportal.fun/api/data"
+api_key: null  # Optional - get from pumpportal.fun
+timeout_seconds: 60
 
-# Optional Headers & Proxy Support
-api_extra_headers:
-  Sec-Fetch-Dest: "empty"
-  Sec-Fetch-Mode: "cors"
-  Sec-Fetch-Site: "same-site"
-proxy_url: null
-playwright_proxy: null
+# WebSocket & Data Collection Settings
+websocket_reconnect_attempts: 5
+websocket_reconnect_delay: 5.0
+websocket_ping_interval: 30.0
+websocket_timeout: 60.0
+data_collection_duration: 300  # 5 minutes default
 
-# Rate Limiting
-rate_limit_rpm: 30          # Requests per minute
-rate_limit_rph: 1000        # Requests per hour
-request_delay: 2.0          # Delay between requests
+# Rate Limiting (for message processing)
+rate_limit_rpm: 100    # Messages per minute
+rate_limit_rph: 5000   # Messages per hour
 
-# Scraping Limits
-max_tokens: 500             # Maximum tokens to scrape
-max_tokens_for_transactions: 50  # Max tokens to get transaction data for
-transactions_per_token: 100      # Transactions per token
-
-# Browser Fallback
-use_browser_fallback: true
-preload_browser_cookies: true
-browser_page_settle_delay: 1.5
-browser_request_timeout_ms: 30000
-cookie_sync_interval: 300
-
-# Output
-output_directory: "data"    # Where to save files
-output_format: "both"       # json, csv, or both
-log_level: "INFO"          # Logging level
-
-# Retry
-max_retries: 5
-retry_delay: 5.0
-max_retry_backoff: 45.0
+# Output Settings
+output_directory: "data"
+output_format: "both"  # json, csv, or both
+log_level: "INFO"
 ```
 
 ## Usage
 
 ### Basic Usage
 
-**Full scraping session** (recommended):
+**Real-time data collection** (recommended):
 ```bash
 python main.py
+# or
+python scrape.py
 ```
 
-**Scrape tokens only**:
+**Custom collection duration**:
 ```bash
-python main.py --tokens-only
+python scrape.py --duration 600  # Collect for 10 minutes
 ```
 
-**Scrape new launches only**:
+**With API key** (for enhanced features):
 ```bash
-python main.py --new-launches
+python scrape.py --api-key YOUR_API_KEY_HERE
 ```
 
-**Limit number of tokens**:
+**Quick collection** (2 minutes):
 ```bash
-python main.py --max-tokens 100
+python scrape.py --quick
 ```
 
-**Use custom config file**:
+**New launches only**:
 ```bash
-python main.py --config my_config.yaml
+python scrape.py --new-launches
+```
+
+**Verbose logging**:
+```bash
+python scrape.py --verbose
 ```
 
 ### Command Line Options
 
 - `--config, -c`: Specify configuration file path (default: config.yaml)
-- `--tokens-only`: Only scrape token information
-- `--transactions-only`: Only scrape transaction data
-- `--new-launches`: Only scrape new token launches
-- `--max-tokens`: Override maximum number of tokens to scrape
+- `--duration, -d`: Data collection duration in seconds
+- `--api-key`: PumpPortal API key for enhanced features
+- `--new-launches, -n`: Only collect new token launches
+- `--quick, -q`: Quick collection (2 minutes)
+- `--output, -o`: Output format (json, csv, both)
+- `--verbose, -v`: Enable verbose logging (DEBUG level)
 
 ### Programmatic Usage
 
 ```python
 import asyncio
 from config import ScraperConfig
-from main import PumpFunScraper
+from main import PumpPortalScraper
 
-async def scrape_data():
+async def collect_data():
     config = ScraperConfig.load("config.yaml")
+    # config.api_key = "your-api-key-here"  # Optional
     
-    async with PumpFunScraper(config) as scraper:
-        # Get latest tokens
-        tokens = await scraper.get_tokens_api(limit=100)
+    async with PumpPortalScraper(config) as scraper:
+        # Collect real-time data for 5 minutes
+        results = await scraper.collect_data(duration_seconds=300)
         
-        # Get new launches from last 24 hours
-        new_launches = await scraper.get_new_launches(hours=24)
+        print(f"Collected {len(results['tokens'])} tokens")
+        print(f"Collected {len(results['transactions'])} transactions")
+        print(f"Found {len(results['new_launches'])} new launches")
         
-        # Get transactions for a specific token
-        if tokens:
-            transactions = await scraper.get_token_transactions(
-                tokens[0].mint_address, limit=50
-            )
-        
-        # Save data
-        await scraper.data_storage.save_tokens(tokens)
-        await scraper.data_storage.save_new_launches(new_launches)
+        # Data is automatically saved to configured output directory
+        return results
 
 # Run the scraper
-asyncio.run(scrape_data())
+asyncio.run(collect_data())
 ```
 
 ## Output Data
@@ -184,6 +177,7 @@ data/
 ├── launches/
 │   ├── new_launches_20231201_143022.json
 │   └── new_launches_20231201_143022.csv
+├── session_stats_20231201_143022.json
 └── pump_fun_data.db
 ```
 
@@ -222,130 +216,94 @@ data/
 }
 ```
 
-## Advanced Features
+## API Integration Details
 
-### Database Queries
+### WebSocket Subscriptions
 
-The SQLite database allows for complex queries:
+The scraper automatically subscribes to these data streams:
 
-```python
-import sqlite3
+- **New Token Events**: `subscribeNewToken` - Real-time token launches
+- **Migration Events**: `subscribeMigration` - Token migration to Raydium
+- **Token Trade Events**: `subscribeTokenTrade` - Live trading activity
+- **Account Trade Events**: `subscribeAccountTrade` - Account-specific trades
 
-# Connect to database
-conn = sqlite3.connect('data/pump_fun_data.db')
+### Connection Management
 
-# Get tokens by market cap
-cursor.execute("""
-    SELECT name, symbol, market_cap 
-    FROM tokens 
-    WHERE market_cap > 10000 
-    ORDER BY market_cap DESC
-""")
+- **Auto-reconnection**: Automatic reconnection with exponential backoff
+- **Ping/Pong**: Regular ping messages to maintain connection
+- **Graceful Shutdown**: SIGINT/SIGTERM signal handling
+- **Error Recovery**: Robust error handling and logging
 
-# Get top trading tokens
-cursor.execute("""
-    SELECT t.name, t.symbol, COUNT(tx.id) as trade_count
-    FROM tokens t
-    JOIN transactions tx ON t.mint_address = tx.token_mint
-    GROUP BY t.mint_address
-    ORDER BY trade_count DESC
-    LIMIT 10
-""")
+### Data Processing
+
+- **Real-time Processing**: Messages processed as they arrive
+- **Data Validation**: Pydantic models ensure data quality
+- **Deduplication**: Prevents duplicate tokens and transactions
+- **Timestamp Parsing**: Handles multiple timestamp formats
+
+## Monitoring & Statistics
+
+### Session Statistics
+
+Each scraping session generates comprehensive statistics:
+
+```json
+{
+  "session_duration": 300.5,
+  "messages_received": 1250,
+  "connection_errors": 1,
+  "reconnection_attempts": 1,
+  "tokens_collected": 45,
+  "transactions_collected": 892,
+  "new_launches": 12,
+  "migrations": 3
+}
 ```
-
-### Custom Rate Limiting
-
-```python
-from utils.rate_limiter import AdaptiveRateLimiter
-
-# Create adaptive rate limiter that adjusts based on responses
-rate_limiter = AdaptiveRateLimiter(
-    requests_per_minute=20,
-    requests_per_hour=800
-)
-
-# Use with your requests
-await rate_limiter.wait_if_needed()
-# ... make request ...
-await rate_limiter.record_response(status_code, error=False)
-```
-
-### Data Export
-
-```python
-from utils.data_storage import DataStorage
-from datetime import datetime, timedelta
-
-storage = DataStorage("data")
-
-# Export last 7 days of data
-start_date = datetime.now() - timedelta(days=7)
-end_date = datetime.now()
-
-export_file = await storage.export_data(start_date, end_date, "json")
-print(f"Data exported to: {export_file}")
-```
-
-## Monitoring & Logging
 
 ### Log Files
 
 Logs are saved to `logs/scraper.log` with rotation. Log levels:
 
-- **DEBUG**: Detailed request/response info
-- **INFO**: General operations and statistics  
-- **WARNING**: Non-critical issues (rate limits, retries)
-- **ERROR**: Request failures and exceptions
+- **DEBUG**: Detailed WebSocket messages and data processing
+- **INFO**: General operations, connections, and statistics  
+- **WARNING**: Connection issues, reconnections, rate limits
+- **ERROR**: Connection failures and processing errors
 
-### Session Statistics
+## Error Handling & Reliability
 
-The scraper tracks comprehensive statistics:
+- **Connection Resilience**: Auto-reconnection with exponential backoff
+- **Message Validation**: JSON schema validation for all messages
+- **Rate Limiting**: Built-in rate limiting for WebSocket messages
+- **Graceful Degradation**: Continues processing despite individual message errors
+- **Signal Handling**: Clean shutdown on SIGINT/SIGTERM
 
-```python
-# Get current session stats
-stats = scraper.logger.get_stats()
-print(f"Success Rate: {stats['success_rate']:.1f}%")
-print(f"Tokens Scraped: {stats['tokens_scraped']}")
-print(f"Requests Made: {stats['requests_made']}")
-```
+## API Rate Limits & Best Practices
 
-## Error Handling
-
-The scraper includes robust error handling:
-
-- **Network errors**: Automatic retries with exponential backoff
-- **Rate limiting**: Adaptive delays when limits are hit
-- **API failures**: Automatic fallback to web scraping
-- **Data validation**: Pydantic models ensure data quality
-- **Graceful degradation**: Continues on non-critical errors
-
-## Security & Best Practices
-
-- **User-Agent rotation**: Mimics real browser requests
-- **Rate limiting**: Respects server limits to avoid blocking  
-- **Request delays**: Randomized delays between requests
-- **Error logging**: Comprehensive error tracking without exposing sensitive data
-- **Data validation**: Input sanitization and type checking
+- **No Hard Limits**: WebSocket API doesn't have strict rate limits like REST APIs
+- **Message Processing**: Built-in rate limiting for processing WebSocket messages
+- **Connection Limits**: Respect connection limits (typically 1-5 concurrent per API key)
+- **API Key Benefits**: Higher limits and priority access with API key
+- **Respectful Usage**: Built-in delays and reconnection backoff
 
 ## Troubleshooting
 
 ### Common Issues
 
-**Issue**: "Rate limit exceeded" or 429 errors
-- **Solution**: Increase `request_delay` in config.yaml or reduce `rate_limit_rpm`
+**Issue**: "WebSocket connection failed"
+- **Solution**: Check internet connection, verify WebSocket URL, try with API key
 
-**Issue**: "Connection timeout" errors  
-- **Solution**: Increase `timeout_seconds` in config.yaml or check internet connection
+**Issue**: "Connection timeout"  
+- **Solution**: Increase `websocket_timeout` in config.yaml
 
-**Issue**: No data returned from API
-- **Solution**: Enable `use_browser_fallback: true` in config for web scraping fallback
+**Issue**: "No data received"
+- **Solution**: Ensure data collection duration is sufficient, check verbose logs
 
-**Issue**: Browser automation fails
-- **Solution**: Run `playwright install chromium` to install browser
+**Issue**: "Frequent reconnections"
+- **Solution**: Check network stability, consider using API key for priority access
 
 ### Debug Mode
 
-Enable debug logging to see detailed request/response information:
+Enable debug logging to see detailed WebSocket communication:
 
 ```yaml
 log_level: "DEBUG"
@@ -353,16 +311,24 @@ log_level: "DEBUG"
 
 Or run with debug flag:
 ```bash
-python main.py --config config.yaml 2>&1 | tee debug.log
+python scrape.py --verbose
 ```
 
 ## API Endpoints
 
-The scraper uses these pump.fun endpoints:
+The scraper uses the official PumpPortal.fun API:
 
-- **Tokens**: `https://frontend-api.pump.fun/coins`
-- **Transactions**: `https://frontend-api.pump.fun/trades/{mint_address}`
-- **Web Interface**: `https://pump.fun` (fallback scraping)
+- **WebSocket API**: `wss://pumpportal.fun/api/data` (real-time data streams)
+- **API Documentation**: Available at [pumpportal.fun](https://pumpportal.fun)
+
+## Migration from Old Version
+
+If you're upgrading from the old web-scraping version:
+
+1. **Update configuration**: The new `config.yaml` uses WebSocket settings
+2. **API Key**: Get an API key from pumpportal.fun (optional but recommended)
+3. **Duration-based**: Set `data_collection_duration` instead of `max_tokens`
+4. **Real-time**: Data is collected in real-time streams, not paginated requests
 
 ## Contributing
 
@@ -373,8 +339,12 @@ The scraper uses these pump.fun endpoints:
 
 ## License
 
-This project is open source. Please use responsibly and respect pump.fun's terms of service.
+This project is open source. Please use responsibly and respect PumpPortal.fun's terms of service.
 
 ## Disclaimer
 
-This tool is for educational and research purposes. Users are responsible for complying with pump.fun's terms of service and applicable laws. The authors are not responsible for any misuse or damage caused by this software.
+This tool is for educational and research purposes. Users are responsible for complying with PumpPortal.fun's terms of service and applicable laws. The authors are not responsible for any misuse or damage caused by this software.
+
+---
+
+**✨ Now using official PumpPortal.fun API - No more 530 errors!**

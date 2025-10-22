@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from config import ScraperConfig
-from main import PumpFunScraper
+from main import PumpPortalScraper
 
 
 def main():
@@ -63,9 +63,20 @@ Examples:
     )
     
     parser.add_argument(
+        "--duration", "-d",
+        type=int,
+        help="Data collection duration in seconds (overrides config)"
+    )
+    
+    parser.add_argument(
+        "--api-key",
+        help="PumpPortal API key for enhanced features"
+    )
+    
+    parser.add_argument(
         "--no-browser",
         action="store_true",
-        help="Disable browser fallback (API only)"
+        help="Disable browser fallback (deprecated - now uses WebSocket API)"
     )
     
     args = parser.parse_args()
@@ -88,6 +99,14 @@ Examples:
         config.max_tokens = args.tokens
         print(f"Set max tokens to: {args.tokens}")
     
+    if args.duration:
+        config.data_collection_duration = args.duration
+        print(f"Set data collection duration to: {args.duration} seconds")
+    
+    if args.api_key:
+        config.api_key = args.api_key
+        print("✓ API key provided for enhanced features")
+    
     if args.output:
         config.output_format = args.output
         print(f"Set output format to: {args.output}")
@@ -97,14 +116,11 @@ Examples:
         print("Enabled verbose logging")
     
     if args.no_browser:
-        config.use_browser_fallback = False
-        print("Disabled browser fallback")
+        print("ℹ Browser fallback is deprecated (now uses official WebSocket API)")
     
     if args.quick:
-        config.max_tokens = 50
-        config.max_tokens_for_transactions = 0  # No transactions in quick mode
-        config.transactions_per_token = 0
-        print("Quick mode: 50 tokens, no transactions")
+        config.data_collection_duration = min(120, config.data_collection_duration)
+        print(f"Quick mode: {config.data_collection_duration} second collection")
     
     # Run the scraper
     try:
@@ -120,17 +136,26 @@ Examples:
 async def run_scraper(config: ScraperConfig, args):
     """Run the scraper with given configuration and arguments"""
     
-    async with PumpFunScraper(config) as scraper:
-        print(f"Starting pump.fun scraper...")
+    async with PumpPortalScraper(config) as scraper:
+        print(f"Starting PumpPortal.fun official API scraper...")
+        print(f"WebSocket URL: {config.websocket_url}")
         print(f"Output directory: {config.output_directory}")
         print(f"Output format: {config.output_format}")
-        print(f"Rate limit: {config.rate_limit_rpm} requests/minute")
+        print(f"Data collection duration: {config.data_collection_duration} seconds")
+        if config.api_key:
+            print("✓ Using API key for enhanced features")
+        else:
+            print("ℹ No API key provided, using public access")
         print("-" * 50)
         
         if args.new_launches:
             # Only scrape new launches
-            print("Scraping new token launches from last 24 hours...")
-            new_launches = await scraper.get_new_launches(hours=24)
+            print("Collecting new token launches from real-time stream...")
+            print("This will collect data for a short period to capture recent launches")
+            
+            # Use a shorter duration for new launches
+            results = await scraper.collect_data(duration_seconds=min(300, args.tokens or 300))
+            new_launches = results['new_launches']
             
             if new_launches:
                 await scraper.data_storage.save_new_launches(new_launches)
@@ -144,21 +169,37 @@ async def run_scraper(config: ScraperConfig, args):
                 if len(new_launches) > 5:
                     print(f"  ... and {len(new_launches) - 5} more")
             else:
-                print("No new launches found in the last 24 hours")
+                print("No new launches detected during collection period")
         
         else:
             # Full or quick scrape
-            print("Running comprehensive scrape...")
-            results = await scraper.run_full_scrape()
+            collection_duration = config.data_collection_duration
+            if args.quick:
+                collection_duration = min(120, collection_duration)  # Shorter for quick mode
+                print(f"Running quick scrape (collecting for {collection_duration} seconds)...")
+            else:
+                print(f"Running comprehensive scrape (collecting for {collection_duration} seconds)...")
+            
+            results = await scraper.collect_data(duration_seconds=collection_duration)
+            
+            # Save collected data
+            if results['tokens']:
+                await scraper.data_storage.save_tokens(results['tokens'])
+            if results['transactions']:
+                await scraper.data_storage.save_transactions(results['transactions'])
+            if results['new_launches']:
+                await scraper.data_storage.save_new_launches(results['new_launches'])
             
             # Print results summary
             print("\n" + "=" * 50)
             print("SCRAPING RESULTS SUMMARY")
             print("=" * 50)
             
-            print(f"Tokens scraped: {len(results['tokens'])}")
-            print(f"Transactions scraped: {len(results['transactions'])}")
+            print(f"Messages received: {results['statistics']['messages_received']}")
+            print(f"Tokens collected: {len(results['tokens'])}")
+            print(f"Transactions collected: {len(results['transactions'])}")
             print(f"New launches found: {len(results['new_launches'])}")
+            print(f"Migration events: {len(results['migrations'])}")
             
             if results['tokens']:
                 # Token statistics
@@ -191,7 +232,13 @@ async def run_scraper(config: ScraperConfig, args):
             print(f"\nData saved to:")
             print(f"  📁 Directory: {config.output_directory}/")
             print(f"  📄 Format: {config.output_format}")
-            print(f"  🗃️  Database: {config.output_directory}/pump_fun_data.db")
+            
+            # Session statistics
+            stats = results['statistics']
+            print(f"\nSession Statistics:")
+            print(f"  Duration: {stats['session_duration']:.1f} seconds")
+            print(f"  Connection errors: {stats['connection_errors']}")
+            print(f"  Reconnection attempts: {stats['reconnection_attempts']}")
         
         print("\n✓ Scraping completed successfully!")
 
