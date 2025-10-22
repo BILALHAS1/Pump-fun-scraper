@@ -6,6 +6,7 @@ A comprehensive Python scraper for collecting data from pump.fun, including toke
 
 - **Multi-source data collection**: Scrapes token info, transactions, new launches, and trading volumes
 - **Dual approach**: API calls with web scraping fallback for reliability
+- **Bot mitigation**: Browser-backed requests, realistic headers, and adaptive retries to avoid 530/Cloudflare blocks
 - **Rate limiting**: Built-in rate limiting to avoid being blocked
 - **Multiple output formats**: Saves data in JSON, CSV, and SQLite database
 - **Comprehensive logging**: Detailed logging with statistics tracking
@@ -50,6 +51,20 @@ A comprehensive Python scraper for collecting data from pump.fun, including toke
 The scraper uses a YAML configuration file (`config.yaml`) for settings. Key configuration options:
 
 ```yaml
+# API Configuration
+base_url: "https://pump.fun"
+api_base_url: "https://frontend-api.pump.fun"
+timeout_seconds: 30
+api_page_size: 100
+
+# Optional Headers & Proxy Support
+api_extra_headers:
+  Sec-Fetch-Dest: "empty"
+  Sec-Fetch-Mode: "cors"
+  Sec-Fetch-Site: "same-site"
+proxy_url: null
+playwright_proxy: null
+
 # Rate Limiting
 rate_limit_rpm: 30          # Requests per minute
 rate_limit_rph: 1000        # Requests per hour
@@ -60,10 +75,22 @@ max_tokens: 500             # Maximum tokens to scrape
 max_tokens_for_transactions: 50  # Max tokens to get transaction data for
 transactions_per_token: 100      # Transactions per token
 
+# Browser Fallback
+use_browser_fallback: true
+preload_browser_cookies: true
+browser_page_settle_delay: 1.5
+browser_request_timeout_ms: 30000
+cookie_sync_interval: 300
+
 # Output
 output_directory: "data"    # Where to save files
 output_format: "both"       # json, csv, or both
 log_level: "INFO"          # Logging level
+
+# Retry
+max_retries: 5
+retry_delay: 5.0
+max_retry_backoff: 45.0
 ```
 
 ## Usage

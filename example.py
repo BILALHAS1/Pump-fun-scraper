@@ -66,9 +66,9 @@ async def basic_example():
         # Save data
         print("\n💾 Saving data...")
         if tokens:
-            await scraper.data_storage.save_tokens(tokens)
+            await scraper.data_storage.save_tokens(tokens, scraper.config.output_format)
         if new_launches:
-            await scraper.data_storage.save_new_launches(new_launches)
+            await scraper.data_storage.save_new_launches(new_launches, scraper.config.output_format)
         
         print("✅ Example completed successfully!")
 
