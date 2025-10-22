@@ -1,0 +1,156 @@
+{
+  "scrape_metadata": {
+    "timestamp": "2023-12-01T14:30:22.123456Z",
+    "scraper_version": "1.0.0",
+    "total_tokens": 3,
+    "total_transactions": 5,
+    "total_new_launches": 1,
+    "session_duration_seconds": 45.67
+  },
+  "tokens": [
+    {
+      "name": "PumpCoin",
+      "symbol": "PUMP",
+      "price": 0.000045,
+      "market_cap": 45123.89,
+      "volume_24h": 12456.78,
+      "created_timestamp": "2023-12-01T10:15:30.000000Z",
+      "mint_address": "7xKXbJaTzA1234567890abcdefABCDEF123456789",
+      "description": "The original pump token for maximum gains",
+      "image_uri": "https://pump.fun/assets/pumpcoin.png",
+      "twitter": "@pumpcoin_official",
+      "telegram": "t.me/pumpcoin",
+      "website": "https://pumpcoin.fun",
+      "scraped_at": "2023-12-01T14:30:22.123456Z"
+    },
+    {
+      "name": "MoonShot",
+      "symbol": "MOON",
+      "price": 0.000123,
+      "market_cap": 98765.43,
+      "volume_24h": 23456.89,
+      "created_timestamp": "2023-12-01T08:45:15.000000Z",
+      "mint_address": "9xKXbJaTzB1234567890abcdefABCDEF987654321",
+      "description": "To the moon and beyond! Community driven token",
+      "image_uri": "https://pump.fun/assets/moonshot.png",
+      "twitter": "@moonshot_token",
+      "telegram": "t.me/moonshot_official",
+      "website": "https://moonshot.crypto",
+      "scraped_at": "2023-12-01T14:30:22.123456Z"
+    },
+    {
+      "name": "SafePump",
+      "symbol": "SAFE",
+      "price": 0.000234,
+      "market_cap": 156789.12,
+      "volume_24h": 45678.90,
+      "created_timestamp": "2023-11-30T16:20:45.000000Z",
+      "mint_address": "5xKXbJaTzC1234567890abcdefABCDEF555666777",
+      "description": "Safe and secure pumping for everyone",
+      "image_uri": "https://pump.fun/assets/safepump.png",
+      "twitter": "@safepump_token",
+      "telegram": "t.me/safepump",
+      "website": "https://safepump.io",
+      "scraped_at": "2023-12-01T14:30:22.123456Z"
+    }
+  ],
+  "transactions": [
+    {
+      "signature": "2xTxSignature1234567890abcdefABCDEF123456789012345678901234567890123456",
+      "token_mint": "7xKXbJaTzA1234567890abcdefABCDEF123456789",
+      "action": "buy",
+      "amount": 1000000.0,
+      "price": 0.045,
+      "user": "3xUserAddress1234567890abcdefABCDEF111222333",
+      "timestamp": "2023-12-01T14:25:10.000000Z",
+      "scraped_at": "2023-12-01T14:30:22.123456Z"
+    },
+    {
+      "signature": "3xTxSignature2345678901bcdefgBCDEFG234567890123456789012345678901234567",
+      "token_mint": "7xKXbJaTzA1234567890abcdefABCDEF123456789",
+      "action": "sell",
+      "amount": 500000.0,
+      "price": 0.046,
+      "user": "4xUserAddress2345678901bcdefgBCDEFG222333444",
+      "timestamp": "2023-12-01T14:20:30.000000Z",
+      "scraped_at": "2023-12-01T14:30:22.123456Z"
+    },
+    {
+      "signature": "4xTxSignature3456789012cdefghCDEFGH345678901234567890123456789012345678",
+      "token_mint": "9xKXbJaTzB1234567890abcdefABCDEF987654321",
+      "action": "buy",
+      "amount": 2000000.0,
+      "price": 0.123,
+      "user": "5xUserAddress3456789012cdefghCDEFGH333444555",
+      "timestamp": "2023-12-01T14:18:45.000000Z",
+      "scraped_at": "2023-12-01T14:30:22.123456Z"
+    },
+    {
+      "signature": "5xTxSignature4567890123defghiDEFGHI456789012345678901234567890123456789",
+      "token_mint": "5xKXbJaTzC1234567890abcdefABCDEF555666777",
+      "action": "buy",
+      "amount": 750000.0,
+      "price": 0.234,
+      "user": "6xUserAddress4567890123defghiDEFGHI444555666",
+      "timestamp": "2023-12-01T14:15:20.000000Z",
+      "scraped_at": "2023-12-01T14:30:22.123456Z"
+    },
+    {
+      "signature": "6xTxSignature5678901234efghijEFGHIJ567890123456789012345678901234567890",
+      "token_mint": "9xKXbJaTzB1234567890abcdefABCDEF987654321", 
+      "action": "sell",
+      "amount": 300000.0,
+      "price": 0.125,
+      "user": "7xUserAddress5678901234efghijEFGHIJ555666777",
+      "timestamp": "2023-12-01T14:10:15.000000Z",
+      "scraped_at": "2023-12-01T14:30:22.123456Z"
+    }
+  ],
+  "new_launches": [
+    {
+      "name": "PumpCoin",
+      "symbol": "PUMP",
+      "price": 0.000045,
+      "market_cap": 45123.89,
+      "volume_24h": 12456.78,
+      "created_timestamp": "2023-12-01T10:15:30.000000Z",
+      "mint_address": "7xKXbJaTzA1234567890abcdefABCDEF123456789",
+      "description": "The original pump token for maximum gains",
+      "image_uri": "https://pump.fun/assets/pumpcoin.png",
+      "twitter": "@pumpcoin_official", 
+      "telegram": "t.me/pumpcoin",
+      "website": "https://pumpcoin.fun",
+      "scraped_at": "2023-12-01T14:30:22.123456Z"
+    }
+  ],
+  "statistics": {
+    "session_stats": {
+      "requests_made": 15,
+      "successful_requests": 14,
+      "failed_requests": 1,
+      "success_rate_percent": 93.33,
+      "average_response_time_ms": 1245.67,
+      "total_data_points": 9
+    },
+    "token_stats": {
+      "total_tokens_found": 3,
+      "tokens_with_transactions": 3,
+      "average_market_cap": 100226.15,
+      "total_volume_24h": 81592.57,
+      "price_range": {
+        "min": 0.000045,
+        "max": 0.000234,
+        "average": 0.000134
+      }
+    },
+    "transaction_stats": {
+      "total_transactions": 5,
+      "buy_transactions": 3,
+      "sell_transactions": 2,
+      "total_buy_volume": 3750000.0,
+      "total_sell_volume": 800000.0,
+      "unique_users": 5,
+      "average_transaction_size": 910000.0
+    }
+  }
+}

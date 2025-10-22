@@ -1,0 +1,46 @@
+# Pump.fun Scraper Configuration
+
+# API Configuration
+base_url: "https://pump.fun"
+api_base_url: "https://frontend-api.pump.fun"
+
+# Rate Limiting Settings
+rate_limit_rpm: 30  # Requests per minute
+rate_limit_rph: 1000  # Requests per hour
+request_delay: 2.0  # Delay between requests in seconds
+
+# Scraping Limits
+max_tokens: 500  # Maximum tokens to scrape in one session
+max_tokens_for_transactions: 50  # Max tokens to get transaction data for
+transactions_per_token: 100  # Number of transactions per token
+new_launches_hours: 24  # Hours to look back for new launches
+
+# Browser Configuration (for web scraping fallback)
+use_browser_fallback: true  # Use browser scraping if API fails
+headless_browser: true  # Run browser in headless mode
+user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+# Output Configuration
+output_directory: "data"  # Directory to save scraped data
+output_format: "both"  # Output format: json, csv, or both
+include_timestamps: true  # Include timestamps in output files
+
+# Logging Configuration
+log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+log_file: "logs/scraper.log"  # Log file path (null to disable file logging)
+
+# Retry Configuration
+max_retries: 3  # Maximum retries for failed requests
+retry_delay: 5.0  # Delay between retries in seconds
+
+# Data Filtering
+min_market_cap: 0.0  # Minimum market cap to include (0 for all)
+min_volume: 0.0  # Minimum 24h volume to include (0 for all)
+exclude_rugged: true  # Attempt to exclude rugged/scam tokens
+
+# Advanced Settings
+batch_size: 50  # Number of items to process in each batch
+concurrent_requests: 5  # Maximum concurrent requests
+timeout_seconds: 30  # Request timeout in seconds
+enable_caching: true  # Enable response caching
+cache_duration: 300  # Cache duration in seconds (5 minutes)
