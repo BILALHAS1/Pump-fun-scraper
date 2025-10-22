@@ -216,6 +216,45 @@ data/
 }
 ```
 
+## Local Dashboard
+
+A local Flask dashboard is included to explore the scraped pump.fun dataset with charts, tables, and summary statistics.
+
+### Quick start
+
+1. Install dependencies (if you have not already):
+   ```bash
+   pip install -r requirements.txt
+   ```
+2. (Optional) Point the dashboard at a fresh scrape output. Export either a directory or a single JSON file:
+   ```bash
+   export PUMP_FUN_DATA_SOURCE=./data                # use the latest files in ./data
+   # or
+   export PUMP_FUN_DATA_FILE=./data/combined.json    # use a specific JSON file
+   ```
+3. Launch the dashboard web server:
+   ```bash
+   python -m dashboard.app
+   ```
+4. Open your browser to [http://localhost:5000](http://localhost:5000) to view the dashboard.
+
+If no environment variables are provided, the dashboard falls back to the bundled `sample_output.json` dataset so that you can explore the UI immediately.
+
+### Configuration
+
+- `PUMP_FUN_DATA_SOURCE`: Path to a directory containing scraper outputs (JSON/CSV). The dashboard automatically picks the most recent JSON files from `tokens/`, `transactions/`, and `launches/` subdirectories when this is set.
+- `PUMP_FUN_DATA_FILE`: Path to a single combined JSON export. Takes precedence over the directory option.
+- `PUMP_FUN_REFRESH_SECONDS`: Controls how often the frontend requests updated data (default `30` seconds).
+
+### Dashboard features
+
+- Responsive Bootstrap layout with dark header and light content cards
+- Auto-refreshing statistics for token counts, volume, transactions, and top movers
+- Searchable and sortable token table with launch timestamps
+- Transaction table with action filters and calculated trade values
+- Chart.js visualisations for price trend, trading volume split (buy vs sell), and activity timelines
+- Timeline view of the most recent token launches with quick links to project resources
+
 ## API Integration Details
 
 ### WebSocket Subscriptions

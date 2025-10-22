@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <title>Pump.fun Local Dashboard</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+      integrity="sha384-4G6AWPFAZo2uiAgNsq4CPGK/c/pXHiY/VKwxLBzME2YkdE+5EYXPLkZXl2bqsxMl"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/dashboard.css') }}"
+    />
+  </head>
+  <body class="bg-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+      <div class="container-fluid">
+        <span class="navbar-brand fw-semibold">Pump.fun Dashboard</span>
+      </div>
+    </nav>
+    <main class="container-fluid py-4">
+      <div class="row align-items-center mb-4">
+        <div class="col-md-8">
+          <h1 class="display-6 fw-semibold mb-0">Scraped Data Overview</h1>
+          <p class="text-muted mb-0" id="data-source"></p>
+        </div>
+        <div class="col-md-4 text-md-end mt-3 mt-md-0">
+          <span class="badge bg-primary bg-opacity-75 p-3">
+            Auto-refresh: <span id="refresh-interval"></span>
+          </span>
+          <div class="text-muted small mt-2" id="last-updated"></div>
+        </div>
+      </div>
+
+      <div class="row g-4" id="summary-cards">
+        <div class="col-12 col-md-6 col-xl-3">
+          <div class="card summary-card shadow-sm">
+            <div class="card-body">
+              <div class="d-flex align-items-center justify-content-between">
+                <div>
+                  <h6 class="text-uppercase text-muted mb-1">Total Tokens</h6>
+                  <h2 class="mb-0" id="summary-total-tokens">--</h2>
+                </div>
+                <div class="summary-icon bg-primary bg-opacity-10 text-primary">
+                  <i class="bi bi-coin"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+          <div class="card summary-card shadow-sm">
+            <div class="card-body">
+              <div class="d-flex align-items-center justify-content-between">
+                <div>
+                  <h6 class="text-uppercase text-muted mb-1">24h Volume</h6>
+                  <h2 class="mb-0" id="summary-24h-volume">--</h2>
+                </div>
+                <div class="summary-icon bg-success bg-opacity-10 text-success">
+                  <i class="bi bi-graph-up"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+          <div class="card summary-card shadow-sm">
+            <div class="card-body">
+              <div class="d-flex align-items-center justify-content-between">
+                <div>
+                  <h6 class="text-uppercase text-muted mb-1">Transactions</h6>
+                  <h2 class="mb-0" id="summary-total-transactions">--</h2>
+                </div>
+                <div class="summary-icon bg-warning bg-opacity-10 text-warning">
+                  <i class="bi bi-lightning-charge"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+          <div class="card summary-card shadow-sm">
+            <div class="card-body">
+              <div class="d-flex align-items-center justify-content-between">
+                <div>
+                  <h6 class="text-uppercase text-muted mb-1">Top Token</h6>
+                  <h2 class="mb-0" id="summary-top-token">--</h2>
+                  <p class="text-muted small mb-0" id="summary-top-token-market-cap"></p>
+                </div>
+                <div class="summary-icon bg-danger bg-opacity-10 text-danger">
+                  <i class="bi bi-star"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-4 mt-0 mt-lg-2">
+        <div class="col-xl-8">
+          <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+              <h5 class="card-title mb-0">Token Price Trend</h5>
+              <small class="text-muted">Sorted by creation time</small>
+            </div>
+            <div class="card-body">
+              <canvas id="priceTrendChart" height="160"></canvas>
+            </div>
+          </div>
+
+          <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+              <h5 class="card-title mb-0">Trading Volume by Token</h5>
+              <small class="text-muted">Buy vs Sell value</small>
+            </div>
+            <div class="card-body">
+              <canvas id="volumeChart" height="180"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="col-xl-4">
+          <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+              <h5 class="card-title mb-0">Activity Timeline</h5>
+              <small class="text-muted">Transactions / Launches</small>
+            </div>
+            <div class="card-body">
+              <canvas id="activityChart" height="280"></canvas>
+            </div>
+          </div>
+
+          <div class="card shadow-sm">
+            <div class="card-header bg-white border-0">
+              <h5 class="card-title mb-0">Latest Launches</h5>
+            </div>
+            <div class="card-body">
+              <div class="launches-timeline" id="launches-list"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mt-4">
+        <div class="card-header bg-white border-0 flex-column flex-lg-row d-flex align-items-lg-center justify-content-between">
+          <div>
+            <h5 class="card-title mb-1">Tokens</h5>
+            <p class="text-muted small mb-0">Search and sort through the latest tokens</p>
+          </div>
+          <div class="d-flex flex-column flex-md-row gap-2 mt-3 mt-lg-0">
+            <div class="input-group">
+              <span class="input-group-text"><i class="bi bi-search"></i></span>
+              <input
+                type="search"
+                class="form-control"
+                placeholder="Search tokens..."
+                id="tokenSearch"
+              />
+            </div>
+            <div class="input-group">
+              <label class="input-group-text" for="tokenSort">Sort by</label>
+              <select class="form-select" id="tokenSort">
+                <option value="market_cap" selected>Market Cap</option>
+                <option value="price">Price</option>
+                <option value="volume_24h">24h Volume</option>
+                <option value="created_timestamp">Launch Time</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle" id="tokensTable">
+              <thead class="table-light">
+                <tr>
+                  <th scope="col">Token</th>
+                  <th scope="col">Price</th>
+                  <th scope="col">Market Cap</th>
+                  <th scope="col">24h Volume</th>
+                  <th scope="col">Launched</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mt-4">
+        <div class="card-header bg-white border-0 flex-column flex-lg-row d-flex align-items-lg-center justify-content-between">
+          <div>
+            <h5 class="card-title mb-1">Transactions</h5>
+            <p class="text-muted small mb-0">Latest trading activity</p>
+          </div>
+          <div class="d-flex gap-2 mt-3 mt-lg-0">
+            <div class="input-group">
+              <label class="input-group-text" for="transactionActionFilter">Action</label>
+              <select class="form-select" id="transactionActionFilter">
+                <option value="all" selected>All</option>
+                <option value="buy">Buys</option>
+                <option value="sell">Sells</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-striped align-middle" id="transactionsTable">
+              <thead class="table-light">
+                <tr>
+                  <th scope="col">Token</th>
+                  <th scope="col">Action</th>
+                  <th scope="col">Amount</th>
+                  <th scope="col">Price</th>
+                  <th scope="col">Value</th>
+                  <th scope="col">User</th>
+                  <th scope="col">Timestamp</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js" integrity="sha512-Rq0YtqlhATwH/M+5bMmfFyan6zHGz0duxlH3FoZT3zh0+BTtPlqvGjufH6G+j6lJzi10BGSAdoo6gWQBaIj++g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script>
+      window.DASHBOARD_CONFIG = {
+        autoRefreshSeconds: {{ auto_refresh_seconds | tojson }},
+      };
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/luxon/3.4.4/luxon.min.js" integrity="sha512-dZFoYDSHLVYDBlnJrped1IovnHgwlHGawEq+y3OCAXoTr4Wr9PXgY7cmk6VwBEm90LkAMPx/+qvOB0fOkH1ZZg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+  </body>
+</html>
