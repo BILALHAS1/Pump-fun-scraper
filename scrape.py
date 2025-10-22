@@ -158,7 +158,10 @@ async def run_scraper(config: ScraperConfig, args):
             new_launches = results['new_launches']
             
             if new_launches:
-                await scraper.data_storage.save_new_launches(new_launches)
+                await scraper.data_storage.save_new_launches(
+                    new_launches,
+                    format_type=config.output_format,
+                )
                 print(f"✓ Found and saved {len(new_launches)} new launches")
                 
                 # Print summary of new launches
@@ -184,11 +187,20 @@ async def run_scraper(config: ScraperConfig, args):
             
             # Save collected data
             if results['tokens']:
-                await scraper.data_storage.save_tokens(results['tokens'])
+                await scraper.data_storage.save_tokens(
+                    results['tokens'],
+                    format_type=config.output_format,
+                )
             if results['transactions']:
-                await scraper.data_storage.save_transactions(results['transactions'])
+                await scraper.data_storage.save_transactions(
+                    results['transactions'],
+                    format_type=config.output_format,
+                )
             if results['new_launches']:
-                await scraper.data_storage.save_new_launches(results['new_launches'])
+                await scraper.data_storage.save_new_launches(
+                    results['new_launches'],
+                    format_type=config.output_format,
+                )
             
             # Print results summary
             print("\n" + "=" * 50)
