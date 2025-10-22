@@ -9,10 +9,11 @@ and rate limiting.
 
 import asyncio
 import json
+import logging
 import signal
 import time
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import urlparse, parse_qs
 
 import websockets
@@ -28,6 +29,28 @@ from utils.rate_limiter import AdaptiveRateLimiter
 
 class PumpPortalScraper:
     """Official PumpPortal.fun API scraper using WebSocket connections"""
+    
+    NEW_TOKEN_MESSAGE_TYPES = {
+        "newtoken",
+        "tokencreated",
+        "new_token",
+        "subscribenewtoken",
+    }
+    TRADE_MESSAGE_TYPES = {
+        "tokentrade",
+        "accounttrade",
+        "wallettrade",
+        "tradetoken",
+        "tradestream",
+        "subscribetokentrade",
+        "subscribeaccounttrade",
+        "trade",
+    }
+    MIGRATION_MESSAGE_TYPES = {
+        "migration",
+        "tokenmigration",
+        "subscribemigration",
+    }
     
     def __init__(self, config: ScraperConfig):
         self.config = config
@@ -47,6 +70,9 @@ class PumpPortalScraper:
         self.collected_transactions: List[TransactionData] = []
         self.new_launches: List[TokenInfo] = []
         self.migration_events: List[Dict[str, Any]] = []
+        self._seen_transaction_signatures: Set[str] = set()
+        self._seen_launch_mints: Set[str] = set()
+        self._seen_migration_events: Set[str] = set()
         
         # Connection management
         self.is_connected = False
@@ -160,108 +186,427 @@ class PumpPortalScraper:
     async def handle_message(self, message: str):
         """Process incoming WebSocket message"""
         try:
+            if self.logger.isEnabledFor(logging.DEBUG):
+                truncated = message if len(message) <= 2000 else f"{message[:2000]}... (truncated)"
+                self.logger.debug(f"Raw message received: {truncated}")
+            
             data = json.loads(message)
             self.messages_received += 1
             
-            # Log message type for debugging
-            message_type = data.get('type', 'unknown')
-            self.logger.debug(f"Received message type: {message_type}")
+            message_type, payload = self._normalize_message(data)
+            normalized_type = (message_type or "unknown").lower()
             
-            # Handle different message types
-            if message_type == 'newToken':
-                await self._process_new_token(data)
-            elif message_type == 'tokenTrade':
-                await self._process_token_trade(data)
-            elif message_type == 'accountTrade':
-                await self._process_account_trade(data)
-            elif message_type == 'migration':
-                await self._process_migration(data)
+            if self.logger.isEnabledFor(logging.DEBUG):
+                if isinstance(payload, dict):
+                    self.logger.debug(
+                        f"Normalized message type '{normalized_type}' with payload keys: {list(payload.keys())}"
+                    )
+                else:
+                    self.logger.debug(
+                        f"Normalized message type '{normalized_type}' with payload: {type(payload).__name__}"
+                    )
+            
+            if normalized_type in self.NEW_TOKEN_MESSAGE_TYPES or (
+                isinstance(payload, dict) and self._looks_like_new_token(payload)
+            ):
+                await self._process_new_token(payload)
+            elif normalized_type in self.TRADE_MESSAGE_TYPES or (
+                isinstance(payload, dict) and self._looks_like_trade(payload)
+            ):
+                await self._process_token_trade(payload)
+            elif normalized_type in self.MIGRATION_MESSAGE_TYPES or (
+                isinstance(payload, dict) and self._looks_like_migration(payload)
+            ):
+                await self._process_migration(payload)
             else:
-                # Log unknown message types for debugging
-                self.logger.debug(f"Unknown message type '{message_type}': {json.dumps(data, indent=2)}")
-                
+                if self.logger.isEnabledFor(logging.DEBUG):
+                    payload_preview = json.dumps(data, default=str)
+                    if len(payload_preview) > 2000:
+                        payload_preview = f"{payload_preview[:2000]}... (truncated)"
+                    self.logger.debug(f"Unhandled message '{normalized_type}': {payload_preview}")
+        
         except json.JSONDecodeError as e:
             self.logger.error(f"Failed to decode message as JSON: {e}")
-        except Exception as e:
-            self.logger.error(f"Error processing message: {e}")
+        except Exception:
+            self.logger.exception("Error processing message")
     
-    async def _process_new_token(self, data: Dict[str, Any]):
+    async def _process_new_token(self, payload: Dict[str, Any]):
         """Process new token creation event"""
         try:
-            token_data = data.get('data', {})
+            if not isinstance(payload, dict):
+                self.logger.debug("New token payload is not a dict; skipping")
+                return
             
-            # Extract token information
-            token = TokenInfo(
-                name=token_data.get('name', ''),
-                symbol=token_data.get('symbol', ''),
-                mint_address=token_data.get('mint', ''),
-                price=self._safe_float(token_data.get('priceUsd')),
-                market_cap=self._safe_float(token_data.get('marketCapUsd')),
-                volume_24h=self._safe_float(token_data.get('volume24h')),
-                created_timestamp=self._parse_timestamp(token_data.get('timestamp')),
-                description=token_data.get('description', ''),
-                image_uri=token_data.get('imageUrl', ''),
-                twitter=token_data.get('twitter', ''),
-                telegram=token_data.get('telegram', ''),
-                website=token_data.get('website', '')
+            metadata = payload.get("metadata") or payload.get("tokenMetadata") or {}
+            if not isinstance(metadata, dict):
+                metadata = {}
+            
+            segments: List[Dict[str, Any]] = [payload]
+            for key in ("tokenInfo", "token", "tokenData", "info", "data"):
+                segment = payload.get(key)
+                if isinstance(segment, dict):
+                    segments.append(segment)
+            segments.append(metadata)
+            
+            token_data: Dict[str, Any] = {}
+            for segment in segments:
+                token_data.update(segment)
+            
+            mint_address = self._first_non_empty_str(
+                token_data.get("mint"),
+                token_data.get("mintAddress"),
+                token_data.get("tokenMint"),
+                token_data.get("mint_address"),
+                token_data.get("address"),
+                metadata.get("mint"),
+            )
+            if not mint_address:
+                self.logger.debug("Skipping new token payload without mint address")
+                return
+            
+            name = self._first_non_empty_str(
+                token_data.get("name"),
+                token_data.get("tokenName"),
+                metadata.get("name"),
+            )
+            symbol = self._first_non_empty_str(
+                token_data.get("symbol"),
+                token_data.get("tokenSymbol"),
+                token_data.get("ticker"),
+                metadata.get("symbol"),
             )
             
-            if token.mint_address:
-                self.collected_tokens[token.mint_address] = token
+            price = self._extract_float(
+                token_data.get("priceUsd"),
+                token_data.get("usdPrice"),
+                token_data.get("price_usd"),
+                token_data.get("priceUSD"),
+                token_data.get("price"),
+                metadata.get("priceUsd"),
+            )
+            market_cap = self._extract_float(
+                token_data.get("marketCapUsd"),
+                token_data.get("marketCap"),
+                token_data.get("usdMarketCap"),
+                token_data.get("fullyDilutedMarketCapUsd"),
+                token_data.get("fdvUsd"),
+                token_data.get("market_cap"),
+            )
+            volume_24h = self._extract_float(
+                token_data.get("volume24h"),
+                token_data.get("volumeUsd24h"),
+                token_data.get("usdVolume24h"),
+                token_data.get("volume24HUsd"),
+                token_data.get("volume24hUsd"),
+                token_data.get("volume"),
+            )
+            
+            timestamp_value = (
+                token_data.get("timestamp")
+                or token_data.get("createdTimestamp")
+                or token_data.get("createdAt")
+                or token_data.get("launchTime")
+                or token_data.get("launchTimestamp")
+                or payload.get("timestamp")
+            )
+            created_timestamp = self._parse_timestamp(timestamp_value)
+            
+            description = self._first_non_empty_str(
+                token_data.get("description"),
+                token_data.get("bio"),
+                metadata.get("description"),
+            )
+            image_uri = self._first_non_empty_str(
+                token_data.get("imageUrl"),
+                token_data.get("image"),
+                token_data.get("image_uri"),
+                metadata.get("imageUrl"),
+                metadata.get("image"),
+            )
+            
+            social_sources = [
+                token_data,
+                payload.get("socials"),
+                payload.get("links"),
+                payload.get("community"),
+                metadata,
+            ]
+            
+            twitter = self._first_non_empty_str(
+                *[
+                    source.get(key)
+                    for source in social_sources
+                    if isinstance(source, dict)
+                    for key in ("twitter", "twitterUrl", "twitter_handle", "twitterHandle", "x")
+                ]
+            )
+            telegram = self._first_non_empty_str(
+                *[
+                    source.get(key)
+                    for source in social_sources
+                    if isinstance(source, dict)
+                    for key in ("telegram", "telegramUrl", "telegram_handle", "tg")
+                ]
+            )
+            website = self._first_non_empty_str(
+                *[
+                    source.get(key)
+                    for source in social_sources
+                    if isinstance(source, dict)
+                    for key in ("website", "websiteUrl", "site", "url", "link")
+                ]
+            )
+            
+            existing_token = self.collected_tokens.get(mint_address)
+            token: TokenInfo
+            if existing_token:
+                token = existing_token.model_copy(
+                    update={
+                        "name": name or existing_token.name,
+                        "symbol": symbol or existing_token.symbol,
+                        "price": price if price > 0 else existing_token.price,
+                        "market_cap": market_cap if market_cap > 0 else existing_token.market_cap,
+                        "volume_24h": volume_24h if volume_24h > 0 else existing_token.volume_24h,
+                        "created_timestamp": created_timestamp or existing_token.created_timestamp,
+                        "description": description or existing_token.description,
+                        "image_uri": image_uri or existing_token.image_uri,
+                        "twitter": twitter or existing_token.twitter,
+                        "telegram": telegram or existing_token.telegram,
+                        "website": website or existing_token.website,
+                    }
+                )
+                self.logger.debug(f"Updated token details for {token.name or mint_address[:8]}")
+            else:
+                token = TokenInfo(
+                    name=name or "",
+                    symbol=symbol or "",
+                    price=price,
+                    market_cap=market_cap,
+                    volume_24h=volume_24h,
+                    created_timestamp=created_timestamp,
+                    mint_address=mint_address,
+                    description=description or "",
+                    image_uri=image_uri or "",
+                    twitter=twitter or "",
+                    telegram=telegram or "",
+                    website=website or "",
+                )
+            
+            self.collected_tokens[mint_address] = token
+            
+            for idx, launch in enumerate(self.new_launches):
+                if launch.mint_address == mint_address:
+                    self.new_launches[idx] = token
+                    break
+            
+            if mint_address not in self._seen_launch_mints:
                 self.new_launches.append(token)
-                
+                self._seen_launch_mints.add(mint_address)
                 self.logger.info(
-                    f"New token: {token.name} ({token.symbol}) - "
+                    f"New token: {token.name or 'Unknown'} ({token.symbol}) - "
                     f"${token.price:.6f} | MC: ${token.market_cap:,.0f}"
                 )
-            
-        except Exception as e:
-            self.logger.error(f"Error processing new token: {e}")
+        
+        except Exception:
+            self.logger.exception("Error processing new token")
     
-    async def _process_token_trade(self, data: Dict[str, Any]):
+    async def _process_token_trade(self, payload: Dict[str, Any]):
         """Process token trade event"""
         try:
-            trade_data = data.get('data', {})
+            if not isinstance(payload, dict):
+                self.logger.debug("Trade payload is not a dict; skipping")
+                return
             
-            transaction = TransactionData(
-                signature=trade_data.get('signature', ''),
-                token_mint=trade_data.get('mint', ''),
-                action=trade_data.get('tradeType', '').lower(),  # 'buy' or 'sell'
-                amount=self._safe_float(trade_data.get('tokenAmount')),
-                price=self._safe_float(trade_data.get('priceUsd')),
-                user=trade_data.get('trader', ''),
-                timestamp=self._parse_timestamp(trade_data.get('timestamp'))
+            segments: List[Dict[str, Any]] = [payload]
+            for key in ("trade", "data", "details", "info"):
+                segment = payload.get(key)
+                if isinstance(segment, dict):
+                    segments.append(segment)
+            
+            trade_data: Dict[str, Any] = {}
+            for segment in segments:
+                trade_data.update(segment)
+            
+            signature = self._first_non_empty_str(
+                trade_data.get("signature"),
+                trade_data.get("txSignature"),
+                trade_data.get("transactionSignature"),
+                trade_data.get("transactionHash"),
+                trade_data.get("id"),
+                payload.get("signature"),
+            )
+            token_mint = self._first_non_empty_str(
+                trade_data.get("mint"),
+                trade_data.get("tokenMint"),
+                trade_data.get("mintAddress"),
+                trade_data.get("tokenAddress"),
             )
             
-            if transaction.signature:
-                self.collected_transactions.append(transaction)
-                
-                self.logger.debug(
-                    f"Trade: {transaction.action.upper()} {transaction.amount:,.0f} "
-                    f"${transaction.price:.6f} by {transaction.user[:8]}..."
-                )
+            if not signature or not token_mint:
+                self.logger.debug("Skipping trade without signature or token mint")
+                return
             
-        except Exception as e:
-            self.logger.error(f"Error processing token trade: {e}")
+            action = self._first_non_empty_str(
+                trade_data.get("tradeType"),
+                trade_data.get("side"),
+                trade_data.get("action"),
+                trade_data.get("type"),
+            ).lower()
+            if action not in {"buy", "sell", "create"}:
+                if "buy" in action:
+                    action = "buy"
+                elif "sell" in action:
+                    action = "sell"
+                elif not action:
+                    action = "trade"
+            
+            amount = self._extract_float(
+                trade_data.get("tokenAmount"),
+                trade_data.get("token_amount"),
+                trade_data.get("amount"),
+                trade_data.get("quantity"),
+                trade_data.get("size"),
+            )
+            price = self._extract_float(
+                trade_data.get("priceUsd"),
+                trade_data.get("usdPrice"),
+                trade_data.get("price_usd"),
+                trade_data.get("price"),
+                trade_data.get("valueUsd"),
+                trade_data.get("usdValue"),
+            )
+            user = self._first_non_empty_str(
+                trade_data.get("trader"),
+                trade_data.get("wallet"),
+                trade_data.get("user"),
+                trade_data.get("owner"),
+                trade_data.get("buyer"),
+                trade_data.get("seller"),
+            )
+            timestamp_value = (
+                trade_data.get("timestamp")
+                or trade_data.get("blockTime")
+                or trade_data.get("time")
+                or trade_data.get("createdAt")
+                or trade_data.get("slotTime")
+            )
+            timestamp = self._parse_timestamp(timestamp_value) or datetime.now()
+            
+            transaction = TransactionData(
+                signature=signature,
+                token_mint=token_mint,
+                action=action or "trade",
+                amount=amount,
+                price=price,
+                user=user,
+                timestamp=timestamp,
+            )
+            
+            if signature in self._seen_transaction_signatures:
+                return
+            
+            self._seen_transaction_signatures.add(signature)
+            self.collected_transactions.append(transaction)
+            
+            market_cap_update = self._extract_float(
+                trade_data.get("marketCapUsd"),
+                trade_data.get("marketCap"),
+                trade_data.get("usdMarketCap"),
+            )
+            volume_increment = amount * price if amount and price else 0.0
+            
+            existing_token = self.collected_tokens.get(token_mint)
+            if existing_token:
+                updated_token = existing_token.model_copy(
+                    update={
+                        "price": price if price > 0 else existing_token.price,
+                        "market_cap": market_cap_update if market_cap_update > 0 else existing_token.market_cap,
+                        "volume_24h": existing_token.volume_24h + volume_increment,
+                        "created_timestamp": existing_token.created_timestamp or timestamp,
+                    }
+                )
+                self.collected_tokens[token_mint] = updated_token
+            else:
+                token_name = self._first_non_empty_str(
+                    trade_data.get("tokenName"),
+                    trade_data.get("name"),
+                )
+                token_symbol = self._first_non_empty_str(
+                    trade_data.get("symbol"),
+                    trade_data.get("tokenSymbol"),
+                    trade_data.get("ticker"),
+                )
+                placeholder_token = TokenInfo(
+                    name=token_name or "",
+                    symbol=token_symbol or "",
+                    price=price,
+                    market_cap=market_cap_update,
+                    volume_24h=volume_increment,
+                    created_timestamp=self._parse_timestamp(trade_data.get("createdAt")) or timestamp,
+                    mint_address=token_mint,
+                    description="",
+                    image_uri="",
+                    twitter="",
+                    telegram="",
+                    website="",
+                )
+                self.collected_tokens[token_mint] = placeholder_token
+            
+            self.logger.debug(
+                f"Trade: {transaction.action.upper()} {transaction.amount:,.0f} @ ${transaction.price:.6f} "
+                f"({transaction.signature[:8]}...)"
+            )
+        
+        except Exception:
+            self.logger.exception("Error processing token trade")
     
-    async def _process_account_trade(self, data: Dict[str, Any]):
+    async def _process_account_trade(self, payload: Dict[str, Any]):
         """Process account trade event"""
-        # Similar to token trade but from account perspective
-        await self._process_token_trade(data)
+        await self._process_token_trade(payload)
     
-    async def _process_migration(self, data: Dict[str, Any]):
+    async def _process_migration(self, payload: Dict[str, Any]):
         """Process token migration event"""
         try:
-            migration_data = data.get('data', {})
+            if not isinstance(payload, dict):
+                self.logger.debug("Migration payload is not a dict; skipping")
+                return
+            
+            migration_data = dict(payload)
+            timestamp_value = (
+                migration_data.get("timestamp")
+                or migration_data.get("time")
+                or migration_data.get("blockTime")
+            )
+            parsed_timestamp = self._parse_timestamp(timestamp_value)
+            if parsed_timestamp:
+                migration_data["parsed_timestamp"] = parsed_timestamp.isoformat()
+            
+            mint_address = self._first_non_empty_str(
+                migration_data.get("mint"),
+                migration_data.get("tokenMint"),
+                migration_data.get("oldMint"),
+            )
+            event_key = self._first_non_empty_str(
+                migration_data.get("signature"),
+                migration_data.get("txSignature"),
+                migration_data.get("transactionHash"),
+            ) or f"{mint_address}|{migration_data.get('parsed_timestamp') or timestamp_value or ''}"
+            
+            if event_key in self._seen_migration_events:
+                return
+            
+            self._seen_migration_events.add(event_key)
             self.migration_events.append(migration_data)
             
-            token_name = migration_data.get('name', 'Unknown')
-            mint_address = migration_data.get('mint', '')
-            
-            self.logger.info(f"Migration event: {token_name} ({mint_address[:8]}...)")
-            
-        except Exception as e:
-            self.logger.error(f"Error processing migration: {e}")
+            token_name = self._first_non_empty_str(
+                migration_data.get("name"),
+                migration_data.get("tokenName"),
+            ) or "Unknown"
+            mint_preview = mint_address[:8] + "..." if mint_address else "unknown"
+            self.logger.info(f"Migration event: {token_name} ({mint_preview})")
+        
+        except Exception:
+            self.logger.exception("Error processing migration")
     
     def _safe_float(self, value: Any, default: float = 0.0) -> float:
         """Safely convert value to float"""
@@ -289,6 +634,197 @@ class PumpPortalScraper:
             pass
         
         return None
+    
+    def _first_non_empty_str(self, *values: Any) -> str:
+        """Return the first non-empty string from provided values."""
+        for value in values:
+            if value is None:
+                continue
+            if isinstance(value, str):
+                candidate = value.strip()
+                if candidate:
+                    return candidate
+            elif isinstance(value, bool):
+                continue
+            elif isinstance(value, (int, float)):
+                candidate = str(value).strip()
+                if candidate:
+                    return candidate
+            elif isinstance(value, (bytes, bytearray)):
+                try:
+                    candidate = value.decode().strip()
+                except Exception:
+                    continue
+                if candidate:
+                    return candidate
+        return ""
+    
+    def _coerce_float(self, value: Any, visited: Optional[Set[int]] = None) -> Optional[float]:
+        if visited is None:
+            visited = set()
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, bool):
+            return float(value)
+        if isinstance(value, str):
+            cleaned = value.strip().replace(",", "")
+            if not cleaned:
+                return None
+            try:
+                return float(cleaned)
+            except ValueError:
+                return None
+        if isinstance(value, dict):
+            obj_id = id(value)
+            if obj_id in visited:
+                return None
+            visited.add(obj_id)
+            preferred_keys = (
+                "usd",
+                "usdValue",
+                "priceUsd",
+                "price_usd",
+                "priceUSD",
+                "valueUsd",
+                "usdPrice",
+                "price",
+                "marketCapUsd",
+                "marketCap",
+                "usdMarketCap",
+                "volume",
+                "amount",
+                "tokenAmount",
+                "token_amount",
+            )
+            for key in preferred_keys:
+                if key in value:
+                    result = self._coerce_float(value.get(key), visited)
+                    if result is not None:
+                        return result
+            for nested_value in value.values():
+                result = self._coerce_float(nested_value, visited)
+                if result is not None:
+                    return result
+            return None
+        if isinstance(value, (list, tuple, set)):
+            for item in value:
+                result = self._coerce_float(item, visited)
+                if result is not None:
+                    return result
+            return None
+        return None
+    
+    def _extract_float(self, *values: Any, default: float = 0.0) -> float:
+        for value in values:
+            result = self._coerce_float(value)
+            if result is not None:
+                return result
+        return default
+    
+    def _extract_message_type(self, data: Dict[str, Any]) -> Optional[str]:
+        if not isinstance(data, dict):
+            return None
+        for key in ("type", "event", "messageType", "method", "channel", "subscription", "topic"):
+            value = data.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        for nested_key in ("data", "payload", "message"):
+            nested = data.get(nested_key)
+            if isinstance(nested, dict):
+                nested_type = self._extract_message_type(nested)
+                if nested_type:
+                    return nested_type
+        return None
+    
+    def _extract_payload(self, data: Dict[str, Any]) -> Any:
+        if not isinstance(data, dict):
+            return data
+        for key in ("data", "payload", "message", "detail", "eventData", "value", "record"):
+            candidate = data.get(key)
+            if isinstance(candidate, dict):
+                return candidate
+            if isinstance(candidate, list) and candidate:
+                first_item = candidate[0]
+                if isinstance(first_item, dict):
+                    return first_item
+        return data
+    
+    def _normalize_message(self, data: Dict[str, Any]) -> Tuple[Optional[str], Dict[str, Any]]:
+        if not isinstance(data, dict):
+            return None, {}
+        message_type = self._extract_message_type(data)
+        payload = self._extract_payload(data)
+        if isinstance(payload, dict):
+            return message_type, payload
+        return message_type, {}
+    
+    def _looks_like_new_token(self, payload: Dict[str, Any]) -> bool:
+        if not isinstance(payload, dict):
+            return False
+        mint = self._first_non_empty_str(
+            payload.get("mint"),
+            payload.get("mintAddress"),
+            payload.get("tokenMint"),
+            payload.get("mint_address"),
+            payload.get("address"),
+        )
+        if not mint:
+            return False
+        metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+        name = self._first_non_empty_str(
+            payload.get("name"),
+            payload.get("tokenName"),
+            metadata.get("name"),
+        )
+        symbol = self._first_non_empty_str(
+            payload.get("symbol"),
+            payload.get("tokenSymbol"),
+            payload.get("ticker"),
+            metadata.get("symbol"),
+        )
+        if name or symbol:
+            return True
+        float_fields = (
+            payload.get("priceUsd"),
+            payload.get("marketCapUsd"),
+            payload.get("fullyDilutedMarketCapUsd"),
+            payload.get("marketCap"),
+        )
+        return any(self._coerce_float(value) is not None for value in float_fields)
+    
+    def _looks_like_trade(self, payload: Dict[str, Any]) -> bool:
+        if not isinstance(payload, dict):
+            return False
+        signature = self._first_non_empty_str(
+            payload.get("signature"),
+            payload.get("txSignature"),
+            payload.get("transactionSignature"),
+            payload.get("transactionHash"),
+            payload.get("id"),
+        )
+        token_mint = self._first_non_empty_str(
+            payload.get("mint"),
+            payload.get("tokenMint"),
+            payload.get("mintAddress"),
+            payload.get("tokenAddress"),
+        )
+        if signature and token_mint:
+            return True
+        indicators = {"tradeType", "tokenAmount", "priceUsd", "usdPrice", "side"}
+        return bool(token_mint and indicators.intersection(payload.keys()))
+    
+    def _looks_like_migration(self, payload: Dict[str, Any]) -> bool:
+        if not isinstance(payload, dict):
+            return False
+        payload_type = payload.get("type")
+        if isinstance(payload_type, str) and "migration" in payload_type.lower():
+            return True
+        return any(
+            key in payload
+            for key in ("newMint", "oldMint", "raydiumPool", "destinationMint", "migrationType")
+        )
     
     async def maintain_connection(self):
         """Main connection maintenance loop"""
@@ -423,13 +959,22 @@ class PumpPortalScraper:
             
             # Save data
             if results['tokens']:
-                await self.data_storage.save_tokens(results['tokens'])
+                await self.data_storage.save_tokens(
+                    results['tokens'],
+                    format_type=self.config.output_format,
+                )
             
             if results['transactions']:
-                await self.data_storage.save_transactions(results['transactions'])
+                await self.data_storage.save_transactions(
+                    results['transactions'],
+                    format_type=self.config.output_format,
+                )
             
             if results['new_launches']:
-                await self.data_storage.save_new_launches(results['new_launches'])
+                await self.data_storage.save_new_launches(
+                    results['new_launches'],
+                    format_type=self.config.output_format,
+                )
             
             # Save session statistics
             stats_file = f"{self.config.output_directory}/session_stats_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
