@@ -1,130 +1,125 @@
-# Quick Start Guide - Pump.fun Scraper
+# 🚀 Quick Start Guide - PumpPortal.fun Official API
 
-Get up and running with the pump.fun scraper in minutes!
+Get up and running with the official PumpPortal.fun API in under 5 minutes!
 
-## 🚀 Installation
+## ⚡ One-Minute Setup
 
-### Option 1: Automated Setup (Recommended)
 ```bash
-# Run the setup script
-python setup.py
-```
-
-### Option 2: Manual Setup
-```bash
-# Install dependencies
+# 1. Install dependencies
 pip install -r requirements.txt
 
-# Install browser for web scraping
-python -m playwright install chromium
-
-# Create directories
-mkdir -p data logs
-```
-
-## ⚡ Quick Usage
-
-### 1. Simple Token Scraping
-```bash
-# Get 50 tokens quickly (no transactions)
-python scrape.py --quick
-```
-
-### 2. New Token Launches
-```bash
-# Check for new tokens launched in last 24 hours
-python scrape.py --new-launches
-```
-
-### 3. Full Scraping Session
-```bash
-# Complete scraping with transactions
+# 2. Run the scraper (collects for 5 minutes)
 python scrape.py
+
+# 3. Check your data
+ls data/
 ```
 
-### 4. Custom Number of Tokens
+That's it! You'll start collecting real-time pump.fun data immediately.
+
+## 📋 What Just Happened?
+
+- ✅ Connected to official PumpPortal.fun WebSocket API
+- ✅ Started collecting real-time token launches, trades, and migrations
+- ✅ Data saved to `data/` directory in JSON, CSV, and SQLite formats
+- ✅ No 530 errors or rate limiting issues!
+
+## 🎛️ Common Commands
+
 ```bash
-# Scrape exactly 100 tokens
-python scrape.py --tokens 100
+# Quick 2-minute collection
+python scrape.py --quick
+
+# Collect for specific duration
+python scrape.py --duration 600  # 10 minutes
+
+# Only new token launches
+python scrape.py --new-launches
+
+# With API key (recommended)
+python scrape.py --api-key YOUR_API_KEY
+
+# Verbose logging
+python scrape.py --verbose
 ```
 
-## 📊 Check Your Data
+## 📁 Output Files
 
-After scraping, your data will be in the `data/` directory:
+After running, check these files:
 
-```bash
-# View token data
-ls data/tokens/
-
-# View JSON output
-cat data/tokens/tokens_*.json | head -20
-
-# View CSV output  
-head data/tokens/tokens_*.csv
+```
+data/
+├── tokens_YYYYMMDD_HHMMSS.json     # Token information
+├── transactions_YYYYMMDD_HHMMSS.json  # Trade data
+├── new_launches_YYYYMMDD_HHMMSS.json  # New tokens
+├── session_stats_YYYYMMDD_HHMMSS.json # Statistics
+└── pump_fun_data.db                # SQLite database
 ```
 
-## 🔧 Configuration
+## 🔑 Get an API Key (Optional)
+
+1. Visit [pumpportal.fun](https://pumpportal.fun)
+2. Sign up and get your API key
+3. Add to config: `api_key: "your-key-here"`
+4. Enjoy enhanced features and higher limits!
+
+## 🎯 What You Can Collect
+
+- **🪙 Token Information**: Names, prices, market caps, metadata
+- **💱 Real-time Trades**: Buy/sell transactions as they happen
+- **🚀 New Launches**: Token creations in real-time
+- **📈 Migration Events**: Tokens moving to Raydium
+- **📊 Statistics**: Session stats and performance metrics
+
+## ⚙️ Configuration
 
 Edit `config.yaml` to customize:
 
 ```yaml
-# Basic settings
-max_tokens: 500           # How many tokens to scrape
-rate_limit_rpm: 30        # Requests per minute (be respectful!)
-output_format: "both"     # json, csv, or both
+# How long to collect data (seconds)
+data_collection_duration: 300  # 5 minutes
 
-# Rate limiting (adjust if getting blocked)
-request_delay: 2.0        # Seconds between requests
-rate_limit_rpm: 20        # Reduce if needed
+# Your API key (optional)
+api_key: "your-api-key-here"
+
+# Output format
+output_format: "both"  # json, csv, or both
+
+# Logging level
+log_level: "INFO"  # DEBUG for more details
 ```
 
-## 📈 View Results
+## 🐛 Troubleshooting
 
-The scraper provides immediate feedback:
+**No data received?**
+- Make sure you have internet connection
+- Try with `--verbose` flag to see detailed logs
+- Ensure firewall allows WebSocket connections
 
-```
-✓ Found and saved 47 new launches
+**Connection issues?**
+- Check if you can access https://pumpportal.fun
+- Try with an API key for priority access
+- Increase timeout in config.yaml
 
-SCRAPING RESULTS SUMMARY
-========================
-Tokens scraped: 100
-Transactions scraped: 2,340
-New launches found: 47
+**Need help?**
+- Check the full README.md
+- Run `python scrape.py --help`
+- Enable debug logging: `--verbose`
 
-Top 5 Tokens by Market Cap:
-  1. MegaPump (MEGA) - $1,234,567.89
-  2. SafeMoon2 (SAFE2) - $987,654.32
-  ...
-```
+## 🎓 Next Steps
 
-## 🛠️ Troubleshooting
+1. **Run Examples**: `python example.py` for guided examples
+2. **Read Full Docs**: Check README.md for advanced features
+3. **Customize**: Modify config.yaml for your needs
+4. **Integrate**: Use the Python API in your own scripts
 
-**"No module named 'yaml'"**
-```bash
-pip install -r requirements.txt
-```
+## 💡 Pro Tips
 
-**"Rate limit exceeded"**  
-- Increase `request_delay` in config.yaml
-- Reduce `rate_limit_rpm`
-
-**"No data returned"**
-- Check internet connection
-- Try: `python scrape.py --no-browser` for API-only mode
-
-## 🎯 What's Next?
-
-1. **Schedule Regular Scraping**: Set up cron jobs
-2. **Analyze Data**: Use the SQLite database for queries
-3. **Monitor New Launches**: Run with `--new-launches` regularly
-4. **Custom Analysis**: Check out `example.py` for code samples
-
-## 📚 More Information
-
-- See `README.md` for detailed documentation
-- Run `python scrape.py --help` for all options
-- Check `example.py` for programmatic usage examples
+- Use `--api-key` for best performance
+- Run longer sessions for more data
+- Check session stats for connection quality
+- Use `--quick` for testing
 
 ---
 
-**Happy Scraping! 🚀**
+**Happy scraping! 🎉 No more 530 errors with the official API!**

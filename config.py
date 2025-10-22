@@ -16,7 +16,9 @@ class ScraperConfig(BaseModel):
 
     # API Configuration
     base_url: str = "https://pump.fun"
-    api_base_url: str = "https://frontend-api.pump.fun"
+    api_base_url: str = "https://pumpportal.fun"  # Official PumpPortal API
+    websocket_url: str = "wss://pumpportal.fun/api/data"  # Official WebSocket API
+    api_key: Optional[str] = Field(default=None, description="Optional API key for enhanced features")
     timeout_seconds: float = Field(default=30.0, description="HTTP request timeout in seconds")
     api_page_size: int = Field(default=100, description="Number of tokens to request per API page")
     api_extra_headers: Dict[str, str] = Field(default_factory=dict, description="Additional headers for API calls")
@@ -36,16 +38,23 @@ class ScraperConfig(BaseModel):
     transactions_per_token: int = Field(default=100, description="Transactions per token")
     new_launches_hours: int = Field(default=24, description="Hours to look back for new launches")
 
-    # Browser Configuration (for web scraping fallback)
-    use_browser_fallback: bool = Field(default=True, description="Use browser scraping if API fails")
+    # WebSocket Configuration
+    websocket_reconnect_attempts: int = Field(default=5, description="Max WebSocket reconnection attempts")
+    websocket_reconnect_delay: float = Field(default=5.0, description="Delay between WebSocket reconnection attempts")
+    websocket_ping_interval: float = Field(default=30.0, description="WebSocket ping interval in seconds")
+    websocket_timeout: float = Field(default=60.0, description="WebSocket connection timeout in seconds")
+    data_collection_duration: int = Field(default=300, description="Duration to collect real-time data in seconds")
+    
+    # Browser Configuration (legacy fallback - deprecated)
+    use_browser_fallback: bool = Field(default=False, description="Use browser scraping if API fails (deprecated)")
     headless_browser: bool = Field(default=True, description="Run browser in headless mode")
     user_agent: str = Field(
         default="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         description="User agent string",
     )
     preload_browser_cookies: bool = Field(
-        default=True,
-        description="Warm up browser session and sync cookies before API calls",
+        default=False,
+        description="Warm up browser session and sync cookies before API calls (deprecated)",
     )
     browser_page_settle_delay: float = Field(
         default=1.5,
