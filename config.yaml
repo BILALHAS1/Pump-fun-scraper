@@ -1,13 +1,21 @@
-# PumpPortal.fun Official API Scraper Configuration
+# Pump.fun Data Scraper Configuration
 
-# Official API Configuration
+# Primary API Configuration - Moralis (Recommended)
+moralis_api_key: null  # REQUIRED: Get your API key from https://moralis.io
+moralis_base_url: "https://solana-gateway.moralis.io"
+use_moralis: true  # Set to true to use Moralis API (recommended)
+moralis_poll_interval: 20  # Polling interval in seconds for Moralis API
+
+# General API Configuration
 base_url: "https://pump.fun"
-api_base_url: "https://pumpportal.fun"  # Official PumpPortal API
-websocket_url: "wss://pumpportal.fun/api/data"  # Official WebSocket API
-api_key: null  # Optional API key for enhanced features (get from pumpportal.fun)
 timeout_seconds: 60
 api_page_size: 100
 api_extra_headers: {}
+
+# Legacy PumpPortal API Configuration (Deprecated)
+api_base_url: "https://pumpportal.fun"  # Official PumpPortal API (legacy)
+websocket_url: "wss://pumpportal.fun/api/data"  # Official WebSocket API (legacy)
+api_key: null  # Optional API key for PumpPortal (deprecated)
 
 # Proxy Configuration
 proxy_url: null  # Example: "http://user:pass@proxy:8000"

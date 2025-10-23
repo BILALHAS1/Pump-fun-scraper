@@ -11,6 +11,12 @@ from pathlib import Path
 from config import ScraperConfig
 from main import PumpPortalScraper
 
+# Import Moralis scraper
+try:
+    from moralis_scraper import MoralisScraper
+except ImportError:
+    MoralisScraper = None
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -69,14 +75,25 @@ Examples:
     )
     
     parser.add_argument(
+        "--moralis-key",
+        help="Moralis API key (recommended)"
+    )
+    
+    parser.add_argument(
         "--api-key",
-        help="PumpPortal API key for enhanced features"
+        help="PumpPortal API key (legacy)"
+    )
+    
+    parser.add_argument(
+        "--use-pumpportal",
+        action="store_true",
+        help="Use PumpPortal API instead of Moralis"
     )
     
     parser.add_argument(
         "--no-browser",
         action="store_true",
-        help="Disable browser fallback (deprecated - now uses WebSocket API)"
+        help="Disable browser fallback (deprecated - now uses API)"
     )
     
     args = parser.parse_args()
@@ -103,9 +120,18 @@ Examples:
         config.data_collection_duration = args.duration
         print(f"Set data collection duration to: {args.duration} seconds")
     
+    if args.moralis_key:
+        config.moralis_api_key = args.moralis_key
+        config.use_moralis = True
+        print("✓ Moralis API key provided")
+    
     if args.api_key:
         config.api_key = args.api_key
-        print("✓ API key provided for enhanced features")
+        print("✓ PumpPortal API key provided (legacy)")
+    
+    if args.use_pumpportal:
+        config.use_moralis = False
+        print("Using PumpPortal API (legacy mode)")
     
     if args.output:
         config.output_format = args.output
@@ -116,7 +142,7 @@ Examples:
         print("Enabled verbose logging")
     
     if args.no_browser:
-        print("ℹ Browser fallback is deprecated (now uses official WebSocket API)")
+        print("ℹ Browser fallback is deprecated (now uses API)")
     
     if args.quick:
         config.data_collection_duration = min(120, config.data_collection_duration)
@@ -136,123 +162,244 @@ Examples:
 async def run_scraper(config: ScraperConfig, args):
     """Run the scraper with given configuration and arguments"""
     
-    async with PumpPortalScraper(config) as scraper:
-        print(f"Starting PumpPortal.fun official API scraper...")
-        print(f"WebSocket URL: {config.websocket_url}")
-        print(f"Output directory: {config.output_directory}")
-        print(f"Output format: {config.output_format}")
-        print(f"Data collection duration: {config.data_collection_duration} seconds")
-        if config.api_key:
-            print("✓ Using API key for enhanced features")
-        else:
-            print("ℹ No API key provided, using public access")
-        print("-" * 50)
-        
-        if args.new_launches:
-            # Only scrape new launches
-            print("Collecting new token launches from real-time stream...")
-            print("This will collect data for a short period to capture recent launches")
-            
-            # Use a shorter duration for new launches
-            results = await scraper.collect_data(duration_seconds=min(300, args.tokens or 300))
-            new_launches = results['new_launches']
-            
-            if new_launches:
-                await scraper.data_storage.save_new_launches(
-                    new_launches,
-                    format_type=config.output_format,
-                )
-                print(f"✓ Found and saved {len(new_launches)} new launches")
-                
-                # Print summary of new launches
-                print("\nNew Launches Summary:")
-                for launch in new_launches[:5]:  # Show first 5
-                    print(f"  • {launch.name} ({launch.symbol}) - ${launch.price:.6f}")
-                
-                if len(new_launches) > 5:
-                    print(f"  ... and {len(new_launches) - 5} more")
+    # Determine which scraper to use
+    use_moralis = config.use_moralis and config.moralis_api_key and MoralisScraper is not None
+    
+    if use_moralis:
+        # Use Moralis scraper
+        async with MoralisScraper(config) as scraper:
+            print(f"Starting Moralis Solana/Pump.fun API scraper...")
+            print(f"Moralis API URL: {config.moralis_base_url}")
+            print(f"Output directory: {config.output_directory}")
+            print(f"Output format: {config.output_format}")
+            print(f"Polling interval: {config.moralis_poll_interval} seconds")
+            if args.duration:
+                print(f"Data collection duration: {args.duration} seconds")
             else:
-                print("No new launches detected during collection period")
+                print("Running continuously until stopped...")
+            print("✓ Using Moralis API key")
+            print("-" * 50)
+            
+            await run_moralis_scraper(scraper, config, args)
+    else:
+        # Use PumpPortal scraper (legacy)
+        if not config.moralis_api_key:
+            print("⚠ Warning: Moralis API key not configured. Using legacy PumpPortal API.")
+            print("   Get a Moralis API key at https://moralis.io for better reliability.")
+            print()
         
-        else:
-            # Full or quick scrape
-            collection_duration = config.data_collection_duration
-            if args.quick:
-                collection_duration = min(120, collection_duration)  # Shorter for quick mode
-                print(f"Running quick scrape (collecting for {collection_duration} seconds)...")
+        async with PumpPortalScraper(config) as scraper:
+            print(f"Starting PumpPortal.fun WebSocket API scraper (legacy)...")
+            print(f"WebSocket URL: {config.websocket_url}")
+            print(f"Output directory: {config.output_directory}")
+            print(f"Output format: {config.output_format}")
+            print(f"Data collection duration: {config.data_collection_duration} seconds")
+            if config.api_key:
+                print("✓ Using API key for enhanced features")
             else:
-                print(f"Running comprehensive scrape (collecting for {collection_duration} seconds)...")
+                print("ℹ No API key provided, using public access")
+            print("-" * 50)
             
-            results = await scraper.collect_data(duration_seconds=collection_duration)
-            
-            # Save collected data
-            if results['tokens']:
-                await scraper.data_storage.save_tokens(
-                    results['tokens'],
-                    format_type=config.output_format,
-                )
-            if results['transactions']:
-                await scraper.data_storage.save_transactions(
-                    results['transactions'],
-                    format_type=config.output_format,
-                )
-            if results['new_launches']:
-                await scraper.data_storage.save_new_launches(
-                    results['new_launches'],
-                    format_type=config.output_format,
-                )
-            
-            # Print results summary
-            print("\n" + "=" * 50)
-            print("SCRAPING RESULTS SUMMARY")
-            print("=" * 50)
-            
-            print(f"Messages received: {results['statistics']['messages_received']}")
-            print(f"Tokens collected: {len(results['tokens'])}")
-            print(f"Transactions collected: {len(results['transactions'])}")
-            print(f"New launches found: {len(results['new_launches'])}")
-            print(f"Migration events: {len(results['migrations'])}")
-            
-            if results['tokens']:
-                # Token statistics
-                market_caps = [t.market_cap for t in results['tokens'] if t.market_cap > 0]
-                if market_caps:
-                    avg_market_cap = sum(market_caps) / len(market_caps)
-                    print(f"Average market cap: ${avg_market_cap:,.2f}")
-                    print(f"Highest market cap: ${max(market_caps):,.2f}")
-                
-                # Show top 5 tokens by market cap
-                top_tokens = sorted(results['tokens'], key=lambda x: x.market_cap, reverse=True)[:5]
-                print(f"\nTop 5 Tokens by Market Cap:")
-                for i, token in enumerate(top_tokens, 1):
-                    print(f"  {i}. {token.name} ({token.symbol}) - ${token.market_cap:,.2f}")
-            
-            if results['transactions']:
-                # Transaction statistics
-                buy_txs = [tx for tx in results['transactions'] if tx.action == 'buy']
-                sell_txs = [tx for tx in results['transactions'] if tx.action == 'sell']
-                
-                print(f"\nTransaction Breakdown:")
-                print(f"  Buy transactions: {len(buy_txs)}")
-                print(f"  Sell transactions: {len(sell_txs)}")
-                
-                if buy_txs:
-                    total_buy_volume = sum(tx.amount * tx.price for tx in buy_txs)
-                    print(f"  Total buy volume: ${total_buy_volume:,.2f}")
-            
-            # File locations
-            print(f"\nData saved to:")
-            print(f"  📁 Directory: {config.output_directory}/")
-            print(f"  📄 Format: {config.output_format}")
-            
-            # Session statistics
-            stats = results['statistics']
-            print(f"\nSession Statistics:")
-            print(f"  Duration: {stats['session_duration']:.1f} seconds")
-            print(f"  Connection errors: {stats['connection_errors']}")
-            print(f"  Reconnection attempts: {stats['reconnection_attempts']}")
+            await run_pumpportal_scraper(scraper, config, args)
+
+
+async def run_moralis_scraper(scraper: 'MoralisScraper', config: ScraperConfig, args):
+    """Run Moralis scraper with given configuration"""
+    
+    if args.new_launches:
+        # Only scrape new launches
+        print("Collecting new token launches...")
         
-        print("\n✓ Scraping completed successfully!")
+        duration = args.duration if args.duration else 300
+        results = await scraper.collect_data(duration_seconds=duration)
+        new_launches = results['new_launches']
+        
+        if new_launches:
+            print(f"✓ Found {len(new_launches)} new launches")
+            
+            # Print summary of new launches
+            print("\nNew Launches Summary:")
+            for launch in new_launches[:5]:  # Show first 5
+                print(f"  • {launch.name} ({launch.symbol}) - ${launch.price:.6f}")
+            
+            if len(new_launches) > 5:
+                print(f"  ... and {len(new_launches) - 5} more")
+        else:
+            print("No new launches detected during collection period")
+    
+    else:
+        # Full or quick scrape
+        duration = args.duration if args.duration else None
+        if args.quick:
+            duration = min(120, duration or 120)
+            print(f"Running quick scrape ({duration} seconds)...")
+        else:
+            if duration:
+                print(f"Running scrape for {duration} seconds...")
+            else:
+                print("Running continuous scrape...")
+        
+        results = await scraper.collect_data(duration_seconds=duration)
+        
+        # Print results summary
+        print("\n" + "=" * 50)
+        print("SCRAPING RESULTS SUMMARY")
+        print("=" * 50)
+        
+        print(f"API requests: {results['statistics']['api_requests']}")
+        print(f"Tokens collected: {len(results['tokens'])}")
+        print(f"Transactions collected: {len(results['transactions'])}")
+        print(f"New launches found: {len(results['new_launches'])}")
+        
+        if results['tokens']:
+            # Token statistics
+            market_caps = [t.market_cap for t in results['tokens'] if t.market_cap > 0]
+            if market_caps:
+                avg_market_cap = sum(market_caps) / len(market_caps)
+                print(f"Average market cap: ${avg_market_cap:,.2f}")
+                print(f"Highest market cap: ${max(market_caps):,.2f}")
+            
+            # Show top 5 tokens by market cap
+            top_tokens = sorted(results['tokens'], key=lambda x: x.market_cap, reverse=True)[:5]
+            print(f"\nTop 5 Tokens by Market Cap:")
+            for i, token in enumerate(top_tokens, 1):
+                print(f"  {i}. {token.name} ({token.symbol}) - ${token.market_cap:,.2f}")
+        
+        if results['transactions']:
+            # Transaction statistics
+            buy_txs = [tx for tx in results['transactions'] if tx.action == 'buy']
+            sell_txs = [tx for tx in results['transactions'] if tx.action == 'sell']
+            
+            print(f"\nTransaction Breakdown:")
+            print(f"  Buy transactions: {len(buy_txs)}")
+            print(f"  Sell transactions: {len(sell_txs)}")
+            
+            if buy_txs:
+                total_buy_volume = sum(tx.amount * tx.price for tx in buy_txs)
+                print(f"  Total buy volume: ${total_buy_volume:,.2f}")
+        
+        # File locations
+        print(f"\nData saved to:")
+        print(f"  📁 Directory: {config.output_directory}/")
+        print(f"  📄 Format: {config.output_format}")
+        
+        # Session statistics
+        stats = results['statistics']
+        print(f"\nSession Statistics:")
+        print(f"  Duration: {stats['session_duration']:.1f} seconds")
+        print(f"  API errors: {stats['connection_errors']}")
+    
+    print("\n✓ Scraping completed successfully!")
+
+
+async def run_pumpportal_scraper(scraper: PumpPortalScraper, config: ScraperConfig, args):
+    """Run PumpPortal scraper with given configuration"""
+    
+    if args.new_launches:
+        # Only scrape new launches
+        print("Collecting new token launches from real-time stream...")
+        print("This will collect data for a short period to capture recent launches")
+        
+        # Use a shorter duration for new launches
+        results = await scraper.collect_data(duration_seconds=min(300, args.tokens or 300))
+        new_launches = results['new_launches']
+        
+        if new_launches:
+            await scraper.data_storage.save_new_launches(
+                new_launches,
+                format_type=config.output_format,
+            )
+            print(f"✓ Found and saved {len(new_launches)} new launches")
+            
+            # Print summary of new launches
+            print("\nNew Launches Summary:")
+            for launch in new_launches[:5]:  # Show first 5
+                print(f"  • {launch.name} ({launch.symbol}) - ${launch.price:.6f}")
+            
+            if len(new_launches) > 5:
+                print(f"  ... and {len(new_launches) - 5} more")
+        else:
+            print("No new launches detected during collection period")
+    
+    else:
+        # Full or quick scrape
+        collection_duration = config.data_collection_duration
+        if args.quick:
+            collection_duration = min(120, collection_duration)  # Shorter for quick mode
+            print(f"Running quick scrape (collecting for {collection_duration} seconds)...")
+        else:
+            print(f"Running comprehensive scrape (collecting for {collection_duration} seconds)...")
+        
+        results = await scraper.collect_data(duration_seconds=collection_duration)
+        
+        # Save collected data
+        if results['tokens']:
+            await scraper.data_storage.save_tokens(
+                results['tokens'],
+                format_type=config.output_format,
+            )
+        if results['transactions']:
+            await scraper.data_storage.save_transactions(
+                results['transactions'],
+                format_type=config.output_format,
+            )
+        if results['new_launches']:
+            await scraper.data_storage.save_new_launches(
+                results['new_launches'],
+                format_type=config.output_format,
+            )
+        
+        # Print results summary
+        print("\n" + "=" * 50)
+        print("SCRAPING RESULTS SUMMARY")
+        print("=" * 50)
+        
+        print(f"Messages received: {results['statistics']['messages_received']}")
+        print(f"Tokens collected: {len(results['tokens'])}")
+        print(f"Transactions collected: {len(results['transactions'])}")
+        print(f"New launches found: {len(results['new_launches'])}")
+        print(f"Migration events: {len(results['migrations'])}")
+        
+        if results['tokens']:
+            # Token statistics
+            market_caps = [t.market_cap for t in results['tokens'] if t.market_cap > 0]
+            if market_caps:
+                avg_market_cap = sum(market_caps) / len(market_caps)
+                print(f"Average market cap: ${avg_market_cap:,.2f}")
+                print(f"Highest market cap: ${max(market_caps):,.2f}")
+            
+            # Show top 5 tokens by market cap
+            top_tokens = sorted(results['tokens'], key=lambda x: x.market_cap, reverse=True)[:5]
+            print(f"\nTop 5 Tokens by Market Cap:")
+            for i, token in enumerate(top_tokens, 1):
+                print(f"  {i}. {token.name} ({token.symbol}) - ${token.market_cap:,.2f}")
+        
+        if results['transactions']:
+            # Transaction statistics
+            buy_txs = [tx for tx in results['transactions'] if tx.action == 'buy']
+            sell_txs = [tx for tx in results['transactions'] if tx.action == 'sell']
+            
+            print(f"\nTransaction Breakdown:")
+            print(f"  Buy transactions: {len(buy_txs)}")
+            print(f"  Sell transactions: {len(sell_txs)}")
+            
+            if buy_txs:
+                total_buy_volume = sum(tx.amount * tx.price for tx in buy_txs)
+                print(f"  Total buy volume: ${total_buy_volume:,.2f}")
+        
+        # File locations
+        print(f"\nData saved to:")
+        print(f"  📁 Directory: {config.output_directory}/")
+        print(f"  📄 Format: {config.output_format}")
+        
+        # Session statistics
+        stats = results['statistics']
+        print(f"\nSession Statistics:")
+        print(f"  Duration: {stats['session_duration']:.1f} seconds")
+        print(f"  Connection errors: {stats['connection_errors']}")
+        print(f"  Reconnection attempts: {stats['reconnection_attempts']}")
+    
+    print("\n✓ Scraping completed successfully!")
 
 
 if __name__ == "__main__":

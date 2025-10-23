@@ -1,43 +1,48 @@
-# PumpPortal.fun Official API Python Scraper
+# Pump.fun Data Scraper - Moralis API Integration
 
-A comprehensive Python scraper that uses the **official PumpPortal.fun WebSocket API** to collect real-time token information, transaction data, new token launches, and trading activity with proper error handling and rate limiting.
+A comprehensive Python scraper that collects token information, transaction data, new token launches, and trading activity from pump.fun using the **Moralis Web3 Data API** for reliable and professional data access.
 
-## 🔥 New: Continuous Real-Time Mode
+## 🚀 Now Using Moralis Web3 Data API
 
-The scraper now runs **continuously** and updates the dashboard in **real-time**:
+This scraper has been **migrated to use the Moralis API** for better reliability and features:
+
+- **Professional Web3 Data Provider** - Industry-leading API service
+- **Reliable Data Access** - Better uptime and data quality
+- **Rich Features** - Comprehensive Solana/Pump.fun data endpoints
+- **Better Documentation** - Well-documented API with examples
+- **Rate Limiting** - Clear limits and professional support
+
+### Legacy PumpPortal Support
+
+The scraper still supports the legacy PumpPortal WebSocket API as a fallback option. You can switch between APIs using configuration.
+
+## 🔥 Continuous Real-Time Mode
+
+The scraper runs **continuously** and updates the dashboard in **real-time**:
 
 - **Runs indefinitely** until stopped (no time limits)
 - **Saves data every 20 seconds** - dashboard shows coins as they're scraped
 - **Live statistics** every 30 seconds showing uptime and collection stats
-- **Infinite reconnection** - keeps running even if connection drops
+- **Automatic polling** - regularly fetches latest data from Moralis
 - **Graceful shutdown** with Ctrl+C
 
 Just run `python main.py` and watch coins appear on the dashboard in real-time!
 
-## 🚀 Official API Integration
-
-This scraper uses the **official PumpPortal.fun API** instead of web scraping, providing:
-
-- **Real-time data** via WebSocket connections
-- **No 530 errors** - uses official endpoints  
-- **Higher reliability** and data accuracy
-- **Better performance** with real-time streaming
-- **Official API support** with optional API key for enhanced features
-
 ## Features
 
-- **Continuous Real-Time Operation**: Runs indefinitely, saves data every 20 seconds
+- **Moralis API Integration**: Uses Moralis Web3 Data API for Solana/Pump.fun data
+- **Continuous Real-Time Operation**: Runs indefinitely with automatic polling
 - **Live Dashboard Integration**: Coins appear on dashboard in real-time as they're scraped
-- **Official API Integration**: Uses PumpPortal.fun WebSocket API (`wss://pumpportal.fun/api/data`)
-- **Real-time Data Streams**: Live token launches, trades, and migration events
+- **Real-time Data**: Regular polling for latest token launches, trades, and market data
 - **Multiple Data Types**: Token info, transactions, new launches, trading volumes, timestamps
-- **Robust Connection Management**: Infinite auto-reconnection, error handling, graceful shutdown
-- **Live Statistics**: Console shows uptime, tokens collected, and connection status every 30s
-- **API Key Support**: Optional API key for enhanced features and higher limits
+- **Robust Error Handling**: Automatic retry and error recovery
+- **Live Statistics**: Console shows uptime, tokens collected, and API stats every 30s
+- **Professional API**: Moralis API key required for reliable data access
 - **Multiple Output Formats**: Saves data in JSON, CSV, and SQLite database
 - **Comprehensive Logging**: Detailed logging with session statistics
-- **Rate Limiting**: Built-in rate limiting for WebSocket messages
+- **Rate Limiting**: Respects API rate limits with proper handling
 - **Data Deduplication**: Prevents duplicate entries
+- **Legacy Support**: Optional fallback to PumpPortal WebSocket API
 
 ## Installation
 
@@ -64,36 +69,44 @@ This scraper uses the **official PumpPortal.fun API** instead of web scraping, p
    mkdir -p data logs
    ```
 
-4. **(Optional) Get PumpPortal API Key**
+4. **Get Moralis API Key (Required)**
+   - Visit [moralis.io](https://moralis.io) and create a free account
+   - Navigate to your dashboard and create a new API key
+   - Add it to `config.yaml` as `moralis_api_key` or use `--moralis-key` flag
+   - Documentation: https://docs.moralis.com/web3-data-api/solana/pump-fun-tutorials
+
+5. **(Optional) Get PumpPortal API Key for Legacy Mode**
    - Visit [pumpportal.fun](https://pumpportal.fun) to get an API key
-   - Add it to your config or use `--api-key` flag for enhanced features
+   - Add it to your config or use `--api-key` flag (only if using legacy mode)
 
 ## Configuration
 
 The scraper uses a YAML configuration file (`config.yaml`) for settings. Key configuration options:
 
 ```yaml
-# Official API Configuration
+# Moralis API Configuration (Primary)
+moralis_api_key: null  # REQUIRED - get from https://moralis.io
+moralis_base_url: "https://solana-gateway.moralis.io"
+use_moralis: true  # Use Moralis API (recommended)
+moralis_poll_interval: 20  # Polling interval in seconds
+
+# General Settings
+timeout_seconds: 60
+api_page_size: 100
+
+# Legacy PumpPortal Configuration (Optional)
 api_base_url: "https://pumpportal.fun"
 websocket_url: "wss://pumpportal.fun/api/data"
-api_key: null  # Optional - get from pumpportal.fun
-timeout_seconds: 60
-
-# WebSocket & Data Collection Settings
-websocket_reconnect_attempts: 5
-websocket_reconnect_delay: 5.0
-websocket_ping_interval: 30.0
-websocket_timeout: 60.0
-data_collection_duration: 300  # 5 minutes default
-
-# Rate Limiting (for message processing)
-rate_limit_rpm: 100    # Messages per minute
-rate_limit_rph: 5000   # Messages per hour
+api_key: null  # Only needed for legacy mode
 
 # Output Settings
 output_directory: "data"
 output_format: "both"  # json, csv, or both
 log_level: "INFO"
+
+# Data Collection
+max_tokens: 1000
+new_launches_hours: 24
 ```
 
 ## Usage
@@ -102,9 +115,15 @@ log_level: "INFO"
 
 **Continuous real-time data collection** (recommended):
 ```bash
+# Make sure to set moralis_api_key in config.yaml first, then:
 python main.py
 # Runs continuously until stopped with Ctrl+C
 # Data is saved every 20 seconds for real-time dashboard updates
+```
+
+**With Moralis API key via command line**:
+```bash
+python main.py --moralis-key YOUR_MORALIS_API_KEY
 ```
 
 **Custom collection duration** (optional):
@@ -112,31 +131,33 @@ python main.py
 python main.py --duration 600  # Collect for 10 minutes only
 ```
 
-**With API key** (for enhanced features):
-```bash
-python scrape.py --api-key YOUR_API_KEY_HERE
-```
-
 **Quick collection** (2 minutes):
 ```bash
-python scrape.py --quick
+python scrape.py --moralis-key YOUR_KEY --quick
 ```
 
 **New launches only**:
 ```bash
-python scrape.py --new-launches
+python scrape.py --moralis-key YOUR_KEY --new-launches
 ```
 
 **Verbose logging**:
 ```bash
-python scrape.py --verbose
+python scrape.py --moralis-key YOUR_KEY --verbose
+```
+
+**Use legacy PumpPortal API** (not recommended):
+```bash
+python main.py --use-pumpportal --api-key YOUR_PUMPPORTAL_KEY
 ```
 
 ### Command Line Options
 
 - `--config, -c`: Specify configuration file path (default: config.yaml)
-- `--duration, -d`: Data collection duration in seconds
-- `--api-key`: PumpPortal API key for enhanced features
+- `--duration, -d`: Data collection duration in seconds (default: continuous)
+- `--moralis-key`: Moralis API key (overrides config file)
+- `--api-key`: PumpPortal API key (only for legacy mode)
+- `--use-pumpportal`: Use PumpPortal API instead of Moralis (legacy mode)
 - `--new-launches, -n`: Only collect new token launches
 - `--quick, -q`: Quick collection (2 minutes)
 - `--output, -o`: Output format (json, csv, both)
@@ -144,17 +165,18 @@ python scrape.py --verbose
 
 ### Programmatic Usage
 
+**Using Moralis API** (recommended):
 ```python
 import asyncio
 from config import ScraperConfig
-from main import PumpPortalScraper
+from moralis_scraper import MoralisScraper
 
 async def collect_data():
     config = ScraperConfig.load("config.yaml")
-    # config.api_key = "your-api-key-here"  # Optional
+    config.moralis_api_key = "your-moralis-api-key-here"  # Required
     
-    async with PumpPortalScraper(config) as scraper:
-        # Collect real-time data for 5 minutes
+    async with MoralisScraper(config) as scraper:
+        # Collect data for 5 minutes
         results = await scraper.collect_data(duration_seconds=300)
         
         print(f"Collected {len(results['tokens'])} tokens")
@@ -165,6 +187,23 @@ async def collect_data():
         return results
 
 # Run the scraper
+asyncio.run(collect_data())
+```
+
+**Using PumpPortal API** (legacy):
+```python
+import asyncio
+from config import ScraperConfig
+from main import PumpPortalScraper
+
+async def collect_data():
+    config = ScraperConfig.load("config.yaml")
+    config.use_moralis = False  # Use legacy mode
+    
+    async with PumpPortalScraper(config) as scraper:
+        results = await scraper.collect_data(duration_seconds=300)
+        return results
+
 asyncio.run(collect_data())
 ```
 
@@ -271,28 +310,38 @@ If no environment variables are provided, the dashboard falls back to the bundle
 
 ## API Integration Details
 
-### WebSocket Subscriptions
+### Moralis API (Primary)
 
-The scraper automatically subscribes to these data streams:
+The scraper uses the **Moralis Web3 Data API** for Solana/Pump.fun:
 
-- **New Token Events**: `subscribeNewToken` - Real-time token launches
-- **Migration Events**: `subscribeMigration` - Token migration to Raydium
-- **Token Trade Events**: `subscribeTokenTrade` - Live trading activity
-- **Account Trade Events**: `subscribeAccountTrade` - Account-specific trades
+- **API Documentation**: https://docs.moralis.com/web3-data-api/solana/pump-fun-tutorials
+- **Authentication**: API key in `X-API-Key` header
+- **Base URL**: `https://solana-gateway.moralis.io`
+- **Rate Limits**: Varies by plan (check Moralis dashboard)
 
-### Connection Management
+**Available Endpoints** (implemented):
+- **Token Data**: Get pump.fun tokens with metadata, prices, market cap
+- **Token Details**: Detailed information for specific tokens
+- **Trade Data**: Recent trades and transactions
+- **New Tokens**: Filter for newly launched tokens
 
-- **Auto-reconnection**: Automatic reconnection with exponential backoff
-- **Ping/Pong**: Regular ping messages to maintain connection
-- **Graceful Shutdown**: SIGINT/SIGTERM signal handling
-- **Error Recovery**: Robust error handling and logging
+### Data Collection
 
-### Data Processing
-
-- **Real-time Processing**: Messages processed as they arrive
+- **Polling Mechanism**: Regular API calls at configurable intervals (default: 20s)
 - **Data Validation**: Pydantic models ensure data quality
 - **Deduplication**: Prevents duplicate tokens and transactions
 - **Timestamp Parsing**: Handles multiple timestamp formats
+- **Error Recovery**: Automatic retry with backoff
+- **Rate Limit Handling**: Respects API limits with proper delays
+
+### Legacy PumpPortal WebSocket (Optional)
+
+If using legacy mode with `--use-pumpportal`:
+
+- **WebSocket Subscriptions**: Real-time streams for new tokens, trades, migrations
+- **Auto-reconnection**: Automatic reconnection with exponential backoff
+- **Ping/Pong**: Regular ping messages to maintain connection
+- **Graceful Shutdown**: SIGINT/SIGTERM signal handling
 
 ## Monitoring & Statistics
 
@@ -369,19 +418,42 @@ python scrape.py --verbose
 
 ## API Endpoints
 
-The scraper uses the official PumpPortal.fun API:
+### Moralis API (Recommended)
+
+- **Base URL**: `https://solana-gateway.moralis.io`
+- **Documentation**: https://docs.moralis.com/web3-data-api/solana/pump-fun-tutorials
+- **Get Started**: https://moralis.io
+
+### PumpPortal API (Legacy)
 
 - **WebSocket API**: `wss://pumpportal.fun/api/data` (real-time data streams)
-- **API Documentation**: Available at [pumpportal.fun](https://pumpportal.fun)
+- **Documentation**: Available at [pumpportal.fun](https://pumpportal.fun)
 
-## Migration from Old Version
+## Migration Notes
+
+### Migrating from PumpPortal to Moralis
+
+If you're using the old PumpPortal version:
+
+1. **Get Moralis API Key**: Sign up at https://moralis.io and get an API key
+2. **Update Configuration**: 
+   ```yaml
+   moralis_api_key: "YOUR_API_KEY"
+   use_moralis: true
+   ```
+3. **All features maintained**: Token data, prices, market cap, images, timestamps all still work
+4. **Better reliability**: More stable API with better documentation
+5. **Optional fallback**: Keep PumpPortal as backup by setting `use_moralis: false`
+
+### Changes from Old Scraper Version
 
 If you're upgrading from the old web-scraping version:
 
-1. **Update configuration**: The new `config.yaml` uses WebSocket settings
-2. **API Key**: Get an API key from pumpportal.fun (optional but recommended)
-3. **Duration-based**: Set `data_collection_duration` instead of `max_tokens`
-4. **Real-time**: Data is collected in real-time streams, not paginated requests
+1. **API-based**: Now uses professional APIs instead of web scraping
+2. **API Key Required**: Moralis API key required for operation
+3. **Polling-based**: Uses regular polling instead of WebSocket (more reliable)
+4. **Same Output**: All data formats (JSON, CSV, SQLite) remain the same
+5. **Same Features**: Dashboard, continuous mode, all features maintained
 
 ## Contributing
 
@@ -392,12 +464,18 @@ If you're upgrading from the old web-scraping version:
 
 ## License
 
-This project is open source. Please use responsibly and respect PumpPortal.fun's terms of service.
+This project is open source. Please use responsibly and respect Moralis and PumpPortal.fun's terms of service.
 
 ## Disclaimer
 
-This tool is for educational and research purposes. Users are responsible for complying with PumpPortal.fun's terms of service and applicable laws. The authors are not responsible for any misuse or damage caused by this software.
+This tool is for educational and research purposes. Users are responsible for:
+- Complying with Moralis API terms of service
+- Complying with pump.fun and Solana network policies
+- Respecting rate limits and fair usage
+- Understanding applicable laws and regulations
+
+The authors are not responsible for any misuse or damage caused by this software.
 
 ---
 
-**✨ Now using official PumpPortal.fun API - No more 530 errors!**
+**✨ Now powered by Moralis Web3 Data API for better reliability and features!**

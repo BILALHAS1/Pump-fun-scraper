@@ -16,9 +16,18 @@ class ScraperConfig(BaseModel):
 
     # API Configuration
     base_url: str = "https://pump.fun"
+    
+    # Moralis API Configuration (Primary)
+    moralis_api_key: Optional[str] = Field(default=None, description="Moralis API key (required)")
+    moralis_base_url: str = "https://solana-gateway.moralis.io"
+    use_moralis: bool = Field(default=True, description="Use Moralis API (recommended)")
+    
+    # Legacy PumpPortal API Configuration (Deprecated)
     api_base_url: str = "https://pumpportal.fun"  # Official PumpPortal API
     websocket_url: str = "wss://pumpportal.fun/api/data"  # Official WebSocket API
-    api_key: Optional[str] = Field(default=None, description="Optional API key for enhanced features")
+    api_key: Optional[str] = Field(default=None, description="Optional PumpPortal API key (deprecated)")
+    
+    # General API Settings
     timeout_seconds: float = Field(default=30.0, description="HTTP request timeout in seconds")
     api_page_size: int = Field(default=100, description="Number of tokens to request per API page")
     api_extra_headers: Dict[str, str] = Field(default_factory=dict, description="Additional headers for API calls")
@@ -38,7 +47,10 @@ class ScraperConfig(BaseModel):
     transactions_per_token: int = Field(default=100, description="Transactions per token")
     new_launches_hours: int = Field(default=24, description="Hours to look back for new launches")
 
-    # WebSocket Configuration
+    # Moralis Polling Configuration
+    moralis_poll_interval: int = Field(default=20, description="Polling interval for Moralis API in seconds")
+    
+    # WebSocket Configuration (Legacy PumpPortal)
     websocket_reconnect_attempts: int = Field(default=5, description="Max WebSocket reconnection attempts")
     websocket_reconnect_delay: float = Field(default=5.0, description="Delay between WebSocket reconnection attempts")
     websocket_ping_interval: float = Field(default=30.0, description="WebSocket ping interval in seconds")
