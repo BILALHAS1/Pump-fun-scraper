@@ -8,14 +8,14 @@ Get up and running with the official PumpPortal.fun API in under 5 minutes!
 # 1. Install dependencies
 pip install -r requirements.txt
 
-# 2. Run the scraper (collects for 5 minutes)
-python scrape.py
+# 2. Run the scraper (runs continuously)
+python main.py
 
-# 3. Check your data
+# 3. Check your data (in another terminal)
 ls data/
 ```
 
-That's it! You'll start collecting real-time pump.fun data immediately.
+That's it! You'll start collecting real-time pump.fun data immediately. Press Ctrl+C to stop.
 
 ## 📋 What Just Happened?
 
@@ -27,20 +27,20 @@ That's it! You'll start collecting real-time pump.fun data immediately.
 ## 🎛️ Common Commands
 
 ```bash
-# Quick 2-minute collection
-python scrape.py --quick
+# Run continuously (default - press Ctrl+C to stop)
+python main.py
 
-# Collect for specific duration
-python scrape.py --duration 600  # 10 minutes
-
-# Only new token launches
-python scrape.py --new-launches
+# Collect for specific duration (optional)
+python main.py --duration 600  # 10 minutes only
 
 # With API key (recommended)
-python scrape.py --api-key YOUR_API_KEY
+python main.py --api-key YOUR_API_KEY
 
 # Verbose logging
-python scrape.py --verbose
+python main.py --verbose
+
+# Dashboard (view data in real-time)
+python dashboard/app.py
 ```
 
 ## 📁 Output Files
@@ -76,9 +76,6 @@ data/
 Edit `config.yaml` to customize:
 
 ```yaml
-# How long to collect data (seconds)
-data_collection_duration: 300  # 5 minutes
-
 # Your API key (optional)
 api_key: "your-api-key-here"
 
@@ -87,6 +84,10 @@ output_format: "both"  # json, csv, or both
 
 # Logging level
 log_level: "INFO"  # DEBUG for more details
+
+# WebSocket settings
+websocket_reconnect_delay: 5.0
+websocket_ping_interval: 30.0
 ```
 
 ## 🐛 Troubleshooting
@@ -116,9 +117,10 @@ log_level: "INFO"  # DEBUG for more details
 ## 💡 Pro Tips
 
 - Use `--api-key` for best performance
-- Run longer sessions for more data
+- Run continuously for real-time data feeds
+- Open dashboard while scraper is running to see live updates
 - Check session stats for connection quality
-- Use `--quick` for testing
+- Press Ctrl+C to stop gracefully
 
 ---
 

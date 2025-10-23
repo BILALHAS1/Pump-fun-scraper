@@ -2,9 +2,21 @@
 
 A comprehensive Python scraper that uses the **official PumpPortal.fun WebSocket API** to collect real-time token information, transaction data, new token launches, and trading activity with proper error handling and rate limiting.
 
-## 🚀 New: Official API Integration
+## 🔥 New: Continuous Real-Time Mode
 
-This scraper has been rebuilt from the ground up to use the **official PumpPortal.fun API** instead of web scraping, providing:
+The scraper now runs **continuously** and updates the dashboard in **real-time**:
+
+- **Runs indefinitely** until stopped (no time limits)
+- **Saves data every 20 seconds** - dashboard shows coins as they're scraped
+- **Live statistics** every 30 seconds showing uptime and collection stats
+- **Infinite reconnection** - keeps running even if connection drops
+- **Graceful shutdown** with Ctrl+C
+
+Just run `python main.py` and watch coins appear on the dashboard in real-time!
+
+## 🚀 Official API Integration
+
+This scraper uses the **official PumpPortal.fun API** instead of web scraping, providing:
 
 - **Real-time data** via WebSocket connections
 - **No 530 errors** - uses official endpoints  
@@ -14,14 +26,16 @@ This scraper has been rebuilt from the ground up to use the **official PumpPorta
 
 ## Features
 
+- **Continuous Real-Time Operation**: Runs indefinitely, saves data every 20 seconds
+- **Live Dashboard Integration**: Coins appear on dashboard in real-time as they're scraped
 - **Official API Integration**: Uses PumpPortal.fun WebSocket API (`wss://pumpportal.fun/api/data`)
 - **Real-time Data Streams**: Live token launches, trades, and migration events
 - **Multiple Data Types**: Token info, transactions, new launches, trading volumes, timestamps
-- **Robust Connection Management**: Auto-reconnection, error handling, graceful shutdown
+- **Robust Connection Management**: Infinite auto-reconnection, error handling, graceful shutdown
+- **Live Statistics**: Console shows uptime, tokens collected, and connection status every 30s
 - **API Key Support**: Optional API key for enhanced features and higher limits
 - **Multiple Output Formats**: Saves data in JSON, CSV, and SQLite database
 - **Comprehensive Logging**: Detailed logging with session statistics
-- **Configurable Duration**: Set custom data collection periods
 - **Rate Limiting**: Built-in rate limiting for WebSocket messages
 - **Data Deduplication**: Prevents duplicate entries
 
@@ -86,16 +100,16 @@ log_level: "INFO"
 
 ### Basic Usage
 
-**Real-time data collection** (recommended):
+**Continuous real-time data collection** (recommended):
 ```bash
 python main.py
-# or
-python scrape.py
+# Runs continuously until stopped with Ctrl+C
+# Data is saved every 20 seconds for real-time dashboard updates
 ```
 
-**Custom collection duration**:
+**Custom collection duration** (optional):
 ```bash
-python scrape.py --duration 600  # Collect for 10 minutes
+python main.py --duration 600  # Collect for 10 minutes only
 ```
 
 **With API key** (for enhanced features):

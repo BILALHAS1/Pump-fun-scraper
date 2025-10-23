@@ -868,58 +868,67 @@ class PumpPortalScraper:
             if not self.is_connected and self.should_reconnect:
                 self.reconnection_attempts += 1
                 
-                if self.reconnection_attempts <= self.config.websocket_reconnect_attempts:
-                    delay = min(
-                        self.config.websocket_reconnect_delay * (2 ** (self.reconnection_attempts - 1)),
-                        60.0  # Max 60 seconds delay
+                # For continuous operation, allow infinite reconnection attempts
+                delay = min(
+                    self.config.websocket_reconnect_delay * (2 ** min(self.reconnection_attempts - 1, 4)),
+                    60.0  # Max 60 seconds delay
+                )
+                
+                self.logger.info(
+                    f"Reconnection attempt {self.reconnection_attempts} in {delay:.1f}s"
+                )
+                
+                try:
+                    await asyncio.wait_for(
+                        asyncio.sleep(delay), 
+                        timeout=delay + 1
                     )
-                    
-                    self.logger.info(
-                        f"Reconnection attempt {self.reconnection_attempts}/"
-                        f"{self.config.websocket_reconnect_attempts} in {delay:.1f}s"
-                    )
-                    
-                    try:
-                        await asyncio.wait_for(
-                            asyncio.sleep(delay), 
-                            timeout=delay + 1
-                        )
-                    except asyncio.TimeoutError:
-                        pass
-                    
-                    if self._shutdown_event.is_set():
-                        break
-                else:
-                    self.logger.error("Maximum reconnection attempts reached")
+                except asyncio.TimeoutError:
+                    pass
+                
+                if self._shutdown_event.is_set():
                     break
     
     async def collect_data(self, duration_seconds: Optional[int] = None) -> Dict[str, Any]:
-        """Collect data for specified duration"""
-        collection_duration = duration_seconds or self.config.data_collection_duration
-        
-        self.logger.info(f"Starting data collection for {collection_duration} seconds...")
+        """Collect data for specified duration or continuously if duration is None"""
+        if duration_seconds is None:
+            self.logger.info("Starting continuous data collection (no time limit)...")
+        else:
+            self.logger.info(f"Starting data collection for {duration_seconds} seconds...")
         
         # Start connection maintenance
         connection_task = asyncio.create_task(self.maintain_connection())
         
+        # Start periodic data saving and stats logging
+        save_task = asyncio.create_task(self._periodic_data_save())
+        stats_task = asyncio.create_task(self._periodic_stats_logging())
+        
         try:
-            # Wait for specified duration or shutdown signal
-            await asyncio.wait_for(
-                self._shutdown_event.wait(),
-                timeout=collection_duration
-            )
+            if duration_seconds is None:
+                # Run indefinitely until shutdown signal
+                await self._shutdown_event.wait()
+            else:
+                # Wait for specified duration or shutdown signal
+                await asyncio.wait_for(
+                    self._shutdown_event.wait(),
+                    timeout=duration_seconds
+                )
         except asyncio.TimeoutError:
             # Normal completion after timeout
             self.logger.info("Data collection duration completed")
         
-        # Stop connection maintenance
+        # Stop all background tasks
         self.should_reconnect = False
-        if not connection_task.done():
-            connection_task.cancel()
-            try:
-                await connection_task
-            except asyncio.CancelledError:
-                pass
+        for task in [connection_task, save_task, stats_task]:
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+        
+        # Final save before returning
+        await self._save_current_data()
         
         # Prepare results
         results = {
@@ -936,6 +945,80 @@ class PumpPortalScraper:
         
         return results
     
+    async def _periodic_data_save(self):
+        """Periodically save data to disk for real-time dashboard updates"""
+        save_interval = 20  # Save every 20 seconds for real-time updates
+        
+        while self.should_reconnect and not self._shutdown_event.is_set():
+            try:
+                await asyncio.sleep(save_interval)
+                if self._shutdown_event.is_set():
+                    break
+                
+                await self._save_current_data()
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                self.logger.error(f"Error during periodic data save: {e}")
+    
+    async def _save_current_data(self):
+        """Save current data to disk using consistent filenames for real-time updates"""
+        try:
+            # Use consistent filenames so dashboard always reads latest data
+            tokens_list = list(self.collected_tokens.values())
+            
+            if tokens_list:
+                await self.data_storage.save_tokens(
+                    tokens_list,
+                    format_type=self.config.output_format,
+                )
+                self.logger.debug(f"Saved {len(tokens_list)} tokens to disk")
+            
+            if self.collected_transactions:
+                await self.data_storage.save_transactions(
+                    self.collected_transactions,
+                    format_type=self.config.output_format,
+                )
+                self.logger.debug(f"Saved {len(self.collected_transactions)} transactions to disk")
+            
+            if self.new_launches:
+                await self.data_storage.save_new_launches(
+                    self.new_launches,
+                    format_type=self.config.output_format,
+                )
+                self.logger.debug(f"Saved {len(self.new_launches)} new launches to disk")
+            
+        except Exception as e:
+            self.logger.error(f"Error saving current data: {e}")
+    
+    async def _periodic_stats_logging(self):
+        """Periodically log statistics to show scraper is active"""
+        log_interval = 30  # Log stats every 30 seconds
+        
+        while self.should_reconnect and not self._shutdown_event.is_set():
+            try:
+                await asyncio.sleep(log_interval)
+                if self._shutdown_event.is_set():
+                    break
+                
+                stats = self._get_session_statistics()
+                uptime = timedelta(seconds=int(stats['session_duration']))
+                
+                self.logger.info(
+                    f"🔄 LIVE STATS | Uptime: {uptime} | "
+                    f"Tokens: {stats['tokens_collected']} | "
+                    f"Transactions: {stats['transactions_collected']} | "
+                    f"New Launches: {stats['new_launches']} | "
+                    f"Messages: {stats['messages_received']} | "
+                    f"Connection: {'✓ Connected' if self.is_connected else '✗ Disconnected'}"
+                )
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                self.logger.error(f"Error during periodic stats logging: {e}")
+    
     def _get_session_statistics(self) -> Dict[str, Any]:
         """Get session statistics"""
         duration = (datetime.now() - self.session_start).total_seconds()
@@ -951,40 +1034,28 @@ class PumpPortalScraper:
             'migrations': len(self.migration_events)
         }
     
-    async def run_full_scrape(self) -> Dict[str, Any]:
-        """Run complete data collection process"""
+    async def run_full_scrape(self, duration_seconds: Optional[int] = None) -> Dict[str, Any]:
+        """Run complete data collection process
+        
+        Args:
+            duration_seconds: Duration to collect data. If None, runs continuously until stopped.
+        """
         try:
-            # Collect real-time data
-            results = await self.collect_data()
+            # Collect real-time data (continuously if duration is None)
+            results = await self.collect_data(duration_seconds=duration_seconds)
             
-            # Save data
-            if results['tokens']:
-                await self.data_storage.save_tokens(
-                    results['tokens'],
-                    format_type=self.config.output_format,
-                )
-            
-            if results['transactions']:
-                await self.data_storage.save_transactions(
-                    results['transactions'],
-                    format_type=self.config.output_format,
-                )
-            
-            if results['new_launches']:
-                await self.data_storage.save_new_launches(
-                    results['new_launches'],
-                    format_type=self.config.output_format,
-                )
-            
-            # Save session statistics
+            # Data is already being saved periodically during collection
+            # Just save final session statistics
             stats_file = f"{self.config.output_directory}/session_stats_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
             with open(stats_file, 'w') as f:
                 json.dump(results['statistics'], f, indent=2, default=str)
             
+            self.logger.info("Scraper stopped. Final statistics saved.")
+            
             return results
             
         except Exception as e:
-            self.logger.error(f"Error during full scrape: {e}")
+            self.logger.error(f"Error during scrape: {e}")
             raise
 
 
@@ -1045,9 +1116,9 @@ async def get_token_transactions(config: ScraperConfig, mint_address: str, limit
 if __name__ == "__main__":
     import argparse
     
-    parser = argparse.ArgumentParser(description="PumpPortal.fun Official API Scraper")
+    parser = argparse.ArgumentParser(description="PumpPortal.fun Official API Scraper - Continuous Real-Time Mode")
     parser.add_argument("--config", "-c", default="config.yaml", help="Configuration file")
-    parser.add_argument("--duration", "-d", type=int, help="Data collection duration in seconds")
+    parser.add_argument("--duration", "-d", type=int, help="Data collection duration in seconds (default: continuous/infinite)")
     parser.add_argument("--api-key", help="PumpPortal API key")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose logging")
     
@@ -1057,8 +1128,6 @@ if __name__ == "__main__":
     config = ScraperConfig.load(args.config)
     
     # Apply CLI overrides
-    if args.duration:
-        config.data_collection_duration = args.duration
     if args.api_key:
         config.api_key = args.api_key
     if args.verbose:
@@ -1066,8 +1135,23 @@ if __name__ == "__main__":
     
     # Run scraper
     async def main():
+        print("=" * 70)
+        print("PumpPortal.fun Real-Time Scraper")
+        print("=" * 70)
+        if args.duration:
+            print(f"Running for {args.duration} seconds...")
+        else:
+            print("Running continuously until stopped (Ctrl+C to exit)...")
+        print("Dashboard will show coins in real-time as they are scraped.")
+        print("=" * 70)
+        print()
+        
         async with PumpPortalScraper(config) as scraper:
-            results = await scraper.run_full_scrape()
-            print(f"✓ Collected {len(results['tokens'])} tokens and {len(results['transactions'])} transactions")
+            results = await scraper.run_full_scrape(duration_seconds=args.duration)
+            print()
+            print("=" * 70)
+            print(f"✓ Scraper stopped gracefully")
+            print(f"✓ Total collected: {len(results['tokens'])} tokens, {len(results['transactions'])} transactions, {len(results['new_launches'])} new launches")
+            print("=" * 70)
     
     asyncio.run(main())
