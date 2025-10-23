@@ -2,11 +2,16 @@
 Configuration management for pump.fun scraper
 """
 
+import os
 from pathlib import Path
 from typing import Dict, Optional
 
 import yaml
+from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, Field
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class ScraperConfig(BaseModel):
@@ -108,6 +113,12 @@ class ScraperConfig(BaseModel):
         if config_file.exists():
             with open(config_file, "r", encoding="utf-8") as file:
                 config_data = yaml.safe_load(file) or {}
+                
+                # Override with environment variable if set
+                env_api_key = os.getenv("MORALIS_API_KEY")
+                if env_api_key:
+                    config_data["moralis_api_key"] = env_api_key
+                
                 return cls(**config_data)
 
         default_config = cls()

@@ -1,7 +1,9 @@
 # Pump.fun Data Scraper Configuration
 
 # Primary API Configuration - Moralis (Recommended)
-moralis_api_key: null  # REQUIRED: Get your API key from https://moralis.io
+# IMPORTANT: Set MORALIS_API_KEY in .env file instead of here for security
+# Get your API key from https://moralis.io
+moralis_api_key: null  # Will be overridden by MORALIS_API_KEY environment variable
 moralis_base_url: "https://solana-gateway.moralis.io"
 use_moralis: true  # Set to true to use Moralis API (recommended)
 moralis_poll_interval: 20  # Polling interval in seconds for Moralis API
