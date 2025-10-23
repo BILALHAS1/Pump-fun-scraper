@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 import os
 from collections import Counter, defaultdict
 from dataclasses import dataclass
@@ -10,6 +11,8 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from dateutil import parser
+
+from config import ScraperConfig
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_SAMPLE_FILE = BASE_DIR / "sample_output.json"
@@ -74,15 +77,86 @@ class PumpFunDataService:
     """Loads and enriches Pump.fun scrape datasets from JSON/CSV outputs."""
 
     def __init__(self, data_source: Optional[str] = None) -> None:
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self._warned_missing_data = False
+
         source = data_source or os.getenv("PUMP_FUN_DATA_SOURCE") or os.getenv(
             "PUMP_FUN_DATA_FILE"
         )
         if source:
-            self.data_source = Path(source).expanduser().resolve()
+            candidate = Path(source).expanduser()
+            if not candidate.is_absolute():
+                candidate = (BASE_DIR / candidate).resolve()
+            if candidate.exists():
+                self.data_source = candidate
+            else:
+                self.logger.warning(
+                    "Provided data source %s does not exist; falling back to defaults",
+                    candidate,
+                )
+                self.data_source = self._determine_default_data_source()
         else:
-            self.data_source = DEFAULT_SAMPLE_FILE
+            self.data_source = self._determine_default_data_source()
+
+        self.logger.info("PumpFunDataService initialised with data source %s", self.data_source)
+
+    def _determine_default_data_source(self) -> Path:
+        try:
+            config = ScraperConfig.load()
+        except Exception as exc:  # pragma: no cover - configuration issues are logged
+            self.logger.debug("Unable to load scraper config: %s", exc)
+            config = None
+
+        if config:
+            output_path = Path(config.output_directory).expanduser()
+            if not output_path.is_absolute():
+                output_path = (BASE_DIR / output_path).resolve()
+            if output_path.exists():
+                if self._warned_missing_data:
+                    self.logger.info(
+                        "Scraper output directory %s detected; resuming live data",
+                        output_path,
+                    )
+                else:
+                    self.logger.info("Using scraper output directory %s", output_path)
+                self._warned_missing_data = False
+                return output_path
+            if not self._warned_missing_data:
+                self.logger.warning(
+                    "Configured output directory %s does not exist", output_path
+                )
+                self._warned_missing_data = True
+
+        data_dir = (BASE_DIR / "data").resolve()
+        if data_dir.exists():
+            if self._warned_missing_data:
+                self.logger.info(
+                    "Local data directory %s detected; resuming live data",
+                    data_dir,
+                )
+            else:
+                self.logger.info("Using default data directory %s", data_dir)
+            self._warned_missing_data = False
+            return data_dir
+
+        if not self._warned_missing_data:
+            self.logger.warning(
+                "No scraper data found; falling back to sample dataset %s",
+                DEFAULT_SAMPLE_FILE,
+            )
+            self._warned_missing_data = True
+        return DEFAULT_SAMPLE_FILE
 
     def load(self) -> Dict[str, Any]:
+        if self.data_source == DEFAULT_SAMPLE_FILE or not self.data_source.exists():
+            preferred_source = self._determine_default_data_source()
+            if preferred_source != self.data_source:
+                self.logger.info(
+                    "Switching data source from %s to %s",
+                    self.data_source,
+                    preferred_source,
+                )
+                self.data_source = preferred_source
         raw = self._load_raw_data()
         summary = self._build_summary(raw.tokens, raw.transactions, raw.statistics)
         charts = self._build_charts(raw.tokens, raw.transactions, raw.new_launches)
@@ -97,7 +171,7 @@ class PumpFunDataService:
         )
 
         scrape_timestamp = raw.scrape_metadata.get("timestamp")
-        return {
+        result = {
             "generated_at": generated_at.isoformat().replace("+00:00", "Z"),
             "dataset_timestamp": dataset_timestamp_iso,
             "scrape_metadata": raw.scrape_metadata,
@@ -112,6 +186,14 @@ class PumpFunDataService:
             "using_sample_data": raw.using_sample_data,
             "scrape_timestamp": scrape_timestamp,
         }
+        self.logger.debug(
+            "Loaded dataset from %s (tokens=%d, transactions=%d, using_sample=%s)",
+            raw.source_path,
+            len(raw.tokens),
+            len(raw.transactions),
+            raw.using_sample_data,
+        )
+        return result
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -121,7 +203,10 @@ class PumpFunDataService:
         using_sample = False
         dataset_timestamp: Optional[datetime] = None
 
+        self.logger.debug("Attempting to load raw data from %s", source)
+
         if source.is_file():
+            self.logger.debug("Reading dataset file %s", source)
             data = self._read_json(source)
             dataset_timestamp = _parse_iso_timestamp(
                 data.get("scrape_metadata", {}).get("timestamp")
@@ -138,6 +223,7 @@ class PumpFunDataService:
             )
 
         if source.is_dir():
+            self.logger.debug("Reading dataset directory %s", source)
             tokens, tokens_timestamp = self._load_latest_collection(
                 source / "tokens", prefix="tokens_"
             )
@@ -195,6 +281,9 @@ class PumpFunDataService:
             )
 
         # Fallback to included sample data
+        self.logger.debug(
+            "Falling back to bundled sample dataset %s", DEFAULT_SAMPLE_FILE
+        )
         using_sample = True
         data = self._read_json(DEFAULT_SAMPLE_FILE)
         dataset_timestamp = _parse_iso_timestamp(
