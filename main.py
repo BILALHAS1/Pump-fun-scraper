@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-PumpPortal.fun Official API Data Scraper
+Pump.fun Data Scraper
 
-This script uses the official PumpPortal.fun WebSocket API to collect real-time
-token information, transaction data, and trading activity with proper error handling
-and rate limiting.
+This script collects token information, transaction data, and trading activity
+from pump.fun using either:
+- Moralis Web3 Data API (recommended, default)
+- PumpPortal.fun WebSocket API (legacy)
 """
 
 import asyncio
@@ -25,6 +26,12 @@ from models import TokenInfo, TransactionData
 from utils.data_storage import DataStorage
 from utils.logger import setup_logger
 from utils.rate_limiter import AdaptiveRateLimiter
+
+# Import Moralis scraper (used when use_moralis=True)
+try:
+    from moralis_scraper import MoralisScraper
+except ImportError:
+    MoralisScraper = None
 
 
 class PumpPortalScraper:
@@ -1116,10 +1123,12 @@ async def get_token_transactions(config: ScraperConfig, mint_address: str, limit
 if __name__ == "__main__":
     import argparse
     
-    parser = argparse.ArgumentParser(description="PumpPortal.fun Official API Scraper - Continuous Real-Time Mode")
+    parser = argparse.ArgumentParser(description="Pump.fun Data Scraper - Continuous Real-Time Mode")
     parser.add_argument("--config", "-c", default="config.yaml", help="Configuration file")
     parser.add_argument("--duration", "-d", type=int, help="Data collection duration in seconds (default: continuous/infinite)")
-    parser.add_argument("--api-key", help="PumpPortal API key")
+    parser.add_argument("--moralis-key", help="Moralis API key")
+    parser.add_argument("--api-key", help="PumpPortal API key (legacy)")
+    parser.add_argument("--use-pumpportal", action="store_true", help="Use PumpPortal API instead of Moralis")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose logging")
     
     args = parser.parse_args()
@@ -1128,15 +1137,26 @@ if __name__ == "__main__":
     config = ScraperConfig.load(args.config)
     
     # Apply CLI overrides
+    if args.moralis_key:
+        config.moralis_api_key = args.moralis_key
+        config.use_moralis = True
     if args.api_key:
         config.api_key = args.api_key
+    if args.use_pumpportal:
+        config.use_moralis = False
     if args.verbose:
         config.log_level = "DEBUG"
+    
+    # Determine which scraper to use
+    use_moralis = config.use_moralis and config.moralis_api_key and MoralisScraper is not None
     
     # Run scraper
     async def main():
         print("=" * 70)
-        print("PumpPortal.fun Real-Time Scraper")
+        if use_moralis:
+            print("Pump.fun Scraper - Using Moralis Web3 Data API")
+        else:
+            print("Pump.fun Scraper - Using PumpPortal WebSocket API (Legacy)")
         print("=" * 70)
         if args.duration:
             print(f"Running for {args.duration} seconds...")
@@ -1146,12 +1166,27 @@ if __name__ == "__main__":
         print("=" * 70)
         print()
         
-        async with PumpPortalScraper(config) as scraper:
-            results = await scraper.run_full_scrape(duration_seconds=args.duration)
-            print()
-            print("=" * 70)
-            print(f"✓ Scraper stopped gracefully")
-            print(f"✓ Total collected: {len(results['tokens'])} tokens, {len(results['transactions'])} transactions, {len(results['new_launches'])} new launches")
-            print("=" * 70)
+        if use_moralis:
+            # Use Moralis scraper
+            async with MoralisScraper(config) as scraper:
+                results = await scraper.collect_data(duration_seconds=args.duration)
+                print()
+                print("=" * 70)
+                print(f"✓ Scraper stopped gracefully")
+                print(f"✓ Total collected: {len(results['tokens'])} tokens, {len(results['transactions'])} transactions, {len(results['new_launches'])} new launches")
+                print("=" * 70)
+        else:
+            # Use PumpPortal scraper (legacy)
+            if not config.moralis_api_key:
+                print("⚠ Warning: Moralis API key not configured. Using legacy PumpPortal API.")
+                print("   Get a Moralis API key at https://moralis.io for better reliability.")
+                print()
+            async with PumpPortalScraper(config) as scraper:
+                results = await scraper.run_full_scrape(duration_seconds=args.duration)
+                print()
+                print("=" * 70)
+                print(f"✓ Scraper stopped gracefully")
+                print(f"✓ Total collected: {len(results['tokens'])} tokens, {len(results['transactions'])} transactions, {len(results['new_launches'])} new launches")
+                print("=" * 70)
     
     asyncio.run(main())
