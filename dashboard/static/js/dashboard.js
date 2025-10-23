@@ -110,13 +110,31 @@
       return;
     }
 
-    const tokens = data.tokens;
+    let tokens = data.tokens;
     const newCoins = data.new_coins || [];
     
     if (tokens.length === 0) {
       showNoData();
       return;
     }
+    
+    // Sort tokens by timestamp in descending order (newest first)
+    tokens = tokens.slice().sort((a, b) => {
+      // Try created_timestamp first, then scraped_at
+      const timeA = a.created_timestamp || a.scraped_at;
+      const timeB = b.created_timestamp || b.scraped_at;
+      
+      if (!timeA && !timeB) return 0;
+      if (!timeA) return 1;
+      if (!timeB) return -1;
+      
+      // Convert to timestamps for comparison
+      const dateA = new Date(timeA).getTime();
+      const dateB = new Date(timeB).getTime();
+      
+      // Sort descending (newest first)
+      return dateB - dateA;
+    });
     
     // Track new coin IDs
     newCoins.forEach(coin => {
