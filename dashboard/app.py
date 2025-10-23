@@ -8,7 +8,7 @@ from flask import Flask, jsonify, render_template
 from .data_service import PumpFunDataService
 
 
-DEFAULT_REFRESH_INTERVAL = int(os.getenv("PUMP_FUN_REFRESH_SECONDS", "30"))
+DEFAULT_REFRESH_INTERVAL = int(os.getenv("PUMP_FUN_REFRESH_SECONDS", "300"))
 
 
 def create_app(data_source: str | None = None) -> Flask:
