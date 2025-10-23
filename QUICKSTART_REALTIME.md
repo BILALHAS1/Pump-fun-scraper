@@ -183,14 +183,16 @@ PUMP_FUN_LIVE_INTERVAL=5 python -m dashboard.app
 - See **IMPLEMENTATION_SUMMARY.md** for technical details
 - Check **CHECKLIST.md** for implementation checklist
 
-## Sample Data
+## Real-Time Data from Scraper
 
-The dashboard includes sample data by default, so you can explore the features immediately without running the scraper.
+The dashboard includes sample data by default, so you can explore the features immediately.
 
-To use live data from the scraper:
-1. Run the scraper: `python scrape.py --duration 300`
-2. Set data source: `export PUMP_FUN_DATA_SOURCE=./data`
-3. Start dashboard: `python -m dashboard.app`
+To use **live data** from the scraper in real-time:
+1. Start the scraper: `python main.py` (runs continuously)
+2. In another terminal, start the dashboard: `python -m dashboard.app`
+3. Watch coins appear on the dashboard as they are scraped!
+
+The scraper saves data every 20 seconds, so the dashboard will show new coins within seconds of being discovered.
 
 ## Browser Support
 
