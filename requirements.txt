@@ -36,3 +36,6 @@ click==8.3.0
 
 # Rate limiting and caching
 aiocache==0.12.3
+
+# Environment variables
+python-dotenv==1.0.0

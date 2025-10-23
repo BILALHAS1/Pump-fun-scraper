@@ -12,6 +12,8 @@ This scraper has been **migrated to use the Moralis API** for better reliability
 - **Better Documentation** - Well-documented API with examples
 - **Rate Limiting** - Clear limits and professional support
 
+> 📘 **New to Moralis?** Check out our [Quick Start API Setup Guide](QUICKSTART_API_SETUP.md) for a 5-minute setup walkthrough!
+
 ### Legacy PumpPortal Support
 
 The scraper still supports the legacy PumpPortal WebSocket API as a fallback option. You can switch between APIs using configuration.
@@ -72,7 +74,28 @@ Just run `python main.py` and watch coins appear on the dashboard in real-time!
 4. **Get Moralis API Key (Required)**
    - Visit [moralis.io](https://moralis.io) and create a free account
    - Navigate to your dashboard and create a new API key
-   - Add it to `config.yaml` as `moralis_api_key` or use `--moralis-key` flag
+   - Set up your API key using one of these methods (in order of preference):
+     
+     **Method 1: Environment Variable (Recommended)**
+     ```bash
+     # Copy the example .env file
+     cp .env.example .env
+     
+     # Edit .env and add your API key
+     # MORALIS_API_KEY=your_actual_api_key_here
+     ```
+     
+     **Method 2: config.yaml file**
+     ```yaml
+     moralis_api_key: "your_actual_api_key_here"
+     ```
+     
+     **Method 3: Command line flag**
+     ```bash
+     python main.py --moralis-key YOUR_API_KEY
+     ```
+   
+   - ⚠️ **Never commit your API key to git** - it's already in .gitignore
    - Documentation: https://docs.moralis.com/web3-data-api/solana/pump-fun-tutorials
 
 5. **(Optional) Get PumpPortal API Key for Legacy Mode**
@@ -150,6 +173,23 @@ python scrape.py --moralis-key YOUR_KEY --verbose
 ```bash
 python main.py --use-pumpportal --api-key YOUR_PUMPPORTAL_KEY
 ```
+
+### Testing API Endpoints
+
+To verify your API key is working and test all endpoints:
+
+```bash
+python test_moralis_endpoints.py
+```
+
+This will test all 7 Moralis Pump.fun API endpoints:
+1. Get new pump.fun tokens
+2. Get token metadata
+3. Get token prices
+4. Get token swaps
+5. Get graduated tokens
+6. Get bonding tokens
+7. Get token bonding status
 
 ### Command Line Options
 
@@ -320,10 +360,27 @@ The scraper uses the **Moralis Web3 Data API** for Solana/Pump.fun:
 - **Rate Limits**: Varies by plan (check Moralis dashboard)
 
 **Available Endpoints** (implemented):
-- **Token Data**: Get pump.fun tokens with metadata, prices, market cap
-- **Token Details**: Detailed information for specific tokens
-- **Trade Data**: Recent trades and transactions
-- **New Tokens**: Filter for newly launched tokens
+- **New Tokens**: Get newly launched pump.fun tokens
+  - Endpoint: `/token/mainnet/pumpfun/new`
+  - Documentation: https://docs.moralis.com/web3-data-api/solana/tutorials/get-new-pump-fun-tokens
+- **Token Metadata**: Get token name, symbol, description, image
+  - Endpoint: `/token/mainnet/{mint_address}/metadata`
+  - Documentation: https://docs.moralis.com/web3-data-api/solana/tutorials/get-pump-fun-token-metadata
+- **Token Prices**: Get current token prices and market data
+  - Endpoint: `/token/mainnet/{mint_address}/price`
+  - Documentation: https://docs.moralis.com/web3-data-api/solana/tutorials/get-pump-fun-token-prices
+- **Token Swaps**: Get trading activity and swap transactions
+  - Endpoint: `/token/mainnet/{mint_address}/swaps`
+  - Documentation: https://docs.moralis.com/web3-data-api/solana/tutorials/get-pump-fun-token-swaps
+- **Graduated Tokens**: Get tokens that have graduated from bonding curve
+  - Endpoint: `/token/mainnet/pumpfun/graduated`
+  - Documentation: https://docs.moralis.com/web3-data-api/solana/tutorials/get-graduated-pump-fun-tokens
+- **Bonding Tokens**: Get tokens currently in bonding curve
+  - Endpoint: `/token/mainnet/pumpfun/bonding`
+  - Documentation: https://docs.moralis.com/web3-data-api/solana/tutorials/get-bonding-pump-fun-tokens
+- **Bonding Status**: Get bonding curve status for a specific token
+  - Endpoint: `/token/mainnet/{mint_address}/bonding-status`
+  - Documentation: https://docs.moralis.com/web3-data-api/solana/tutorials/get-token-bonding-status
 
 ### Data Collection
 
@@ -465,6 +522,45 @@ If you're upgrading from the old web-scraping version:
 ## License
 
 This project is open source. Please use responsibly and respect Moralis and PumpPortal.fun's terms of service.
+
+## API Endpoint Implementation Details
+
+### Moralis Pump.fun API Endpoints
+
+All endpoints are properly implemented according to the official Moralis documentation:
+
+| Endpoint | Purpose | Documentation |
+|----------|---------|---------------|
+| `/token/mainnet/pumpfun/new` | Get new token launches | [Get New Tokens](https://docs.moralis.com/web3-data-api/solana/tutorials/get-new-pump-fun-tokens) |
+| `/token/mainnet/{address}/metadata` | Get token metadata | [Get Metadata](https://docs.moralis.com/web3-data-api/solana/tutorials/get-pump-fun-token-metadata) |
+| `/token/mainnet/{address}/price` | Get token prices | [Get Prices](https://docs.moralis.com/web3-data-api/solana/tutorials/get-pump-fun-token-prices) |
+| `/token/mainnet/{address}/swaps` | Get token swaps | [Get Swaps](https://docs.moralis.com/web3-data-api/solana/tutorials/get-pump-fun-token-swaps) |
+| `/token/mainnet/pumpfun/graduated` | Get graduated tokens | [Get Graduated](https://docs.moralis.com/web3-data-api/solana/tutorials/get-graduated-pump-fun-tokens) |
+| `/token/mainnet/pumpfun/bonding` | Get bonding tokens | [Get Bonding](https://docs.moralis.com/web3-data-api/solana/tutorials/get-bonding-pump-fun-tokens) |
+| `/token/mainnet/{address}/bonding-status` | Get bonding status | [Get Status](https://docs.moralis.com/web3-data-api/solana/tutorials/get-token-bonding-status) |
+
+### Data Collection Process
+
+1. **Continuous Polling**: Scraper polls every 20 seconds (configurable)
+2. **New Token Discovery**: Uses "get new tokens" endpoint to find new launches
+3. **Price Updates**: Fetches latest prices for discovered tokens
+4. **Metadata Enrichment**: Gets token names, symbols, descriptions, images
+5. **Trading Activity**: Collects swap/trade data for active tokens
+6. **Real-time Storage**: Saves data every 20 seconds for dashboard updates
+7. **Deduplication**: Prevents duplicate entries based on mint addresses
+
+### Security Best Practices
+
+✅ **API Key Storage:**
+- ✓ Store in `.env` file (recommended)
+- ✓ Use environment variable `MORALIS_API_KEY`
+- ✓ Never commit `.env` to git (already in `.gitignore`)
+- ✓ Never hardcode API keys in source code
+
+✅ **Configuration Priority:**
+1. Environment variable `MORALIS_API_KEY` (highest priority)
+2. `config.yaml` file
+3. Command line flag `--moralis-key`
 
 ## Disclaimer
 

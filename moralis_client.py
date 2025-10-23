@@ -16,9 +16,13 @@ from models import TokenInfo, TransactionData
 
 
 class MoralisClient:
-    """Client for Moralis Solana/Pump.fun API"""
+    """Client for Moralis Solana/Pump.fun API
+    
+    Documentation: https://docs.moralis.com/web3-data-api/solana/tutorials/
+    """
     
     BASE_URL = "https://solana-gateway.moralis.io"
+    NETWORK = "mainnet"  # Solana mainnet
     
     def __init__(self, api_key: str, timeout: float = 30.0, logger: Optional[logging.Logger] = None):
         """
@@ -109,7 +113,9 @@ class MoralisClient:
         order: str = "desc",
     ) -> List[Dict[str, Any]]:
         """
-        Get pump.fun tokens from Moralis API
+        Get new pump.fun tokens from Moralis API
+        
+        Documentation: https://docs.moralis.com/web3-data-api/solana/tutorials/get-new-pump-fun-tokens
         
         Args:
             limit: Number of tokens to retrieve (max 100)
@@ -123,15 +129,13 @@ class MoralisClient:
         params = {
             "limit": min(limit, 100),
             "offset": offset,
-            "sort_by": sort_by,
-            "order": order,
         }
         
         try:
-            # Moralis API endpoint for pump.fun tokens
-            # Note: This endpoint structure is based on typical Moralis patterns
-            # and may need adjustment based on actual API documentation
-            data = await self._request("GET", "/pumpfun/tokens", params=params)
+            # Moralis API endpoint for new pump.fun tokens
+            # Based on: https://docs.moralis.com/web3-data-api/solana/tutorials/get-new-pump-fun-tokens
+            endpoint = f"/token/mainnet/pumpfun/new"
+            data = await self._request("GET", endpoint, params=params)
             
             # Handle both list response and paginated response formats
             if isinstance(data, list):
@@ -140,6 +144,8 @@ class MoralisClient:
                 return data.get("result", [])
             elif isinstance(data, dict) and "data" in data:
                 return data.get("data", [])
+            elif isinstance(data, dict) and "tokens" in data:
+                return data.get("tokens", [])
             else:
                 return []
                 
@@ -147,22 +153,134 @@ class MoralisClient:
             self.logger.error(f"Error fetching pump.fun tokens: {e}")
             return []
     
-    async def get_token_details(self, mint_address: str) -> Optional[Dict[str, Any]]:
+    async def get_token_metadata(self, mint_address: str) -> Optional[Dict[str, Any]]:
         """
-        Get detailed information for a specific token
+        Get metadata for a specific pump.fun token
+        
+        Documentation: https://docs.moralis.com/web3-data-api/solana/tutorials/get-pump-fun-token-metadata
         
         Args:
             mint_address: Token mint address
             
         Returns:
-            Token details dictionary or None
+            Token metadata dictionary or None
         """
         try:
-            data = await self._request("GET", f"/pumpfun/token/{mint_address}")
+            endpoint = f"/token/mainnet/{mint_address}/metadata"
+            data = await self._request("GET", endpoint)
             return data
+        except Exception as e:
+            self.logger.error(f"Error fetching token metadata for {mint_address}: {e}")
+            return None
+    
+    async def get_token_price(self, mint_address: str) -> Optional[Dict[str, Any]]:
+        """
+        Get price data for a specific pump.fun token
+        
+        Documentation: https://docs.moralis.com/web3-data-api/solana/tutorials/get-pump-fun-token-prices
+        
+        Args:
+            mint_address: Token mint address
+            
+        Returns:
+            Token price data dictionary or None
+        """
+        try:
+            endpoint = f"/token/mainnet/{mint_address}/price"
+            data = await self._request("GET", endpoint)
+            return data
+        except Exception as e:
+            self.logger.error(f"Error fetching token price for {mint_address}: {e}")
+            return None
+    
+    async def get_token_details(self, mint_address: str) -> Optional[Dict[str, Any]]:
+        """
+        Get detailed information for a specific token (metadata + price)
+        
+        Args:
+            mint_address: Token mint address
+            
+        Returns:
+            Combined token details dictionary or None
+        """
+        try:
+            # Fetch metadata and price in parallel
+            metadata_task = self.get_token_metadata(mint_address)
+            price_task = self.get_token_price(mint_address)
+            
+            metadata, price_data = await asyncio.gather(
+                metadata_task, price_task, return_exceptions=True
+            )
+            
+            # Combine metadata and price data
+            combined = {}
+            if metadata and not isinstance(metadata, Exception):
+                combined.update(metadata)
+            if price_data and not isinstance(price_data, Exception):
+                combined.update(price_data)
+            
+            return combined if combined else None
         except Exception as e:
             self.logger.error(f"Error fetching token details for {mint_address}: {e}")
             return None
+    
+    async def get_token_swaps(
+        self,
+        mint_address: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+        from_date: Optional[datetime] = None,
+        to_date: Optional[datetime] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get swaps/trades for pump.fun tokens
+        
+        Documentation: https://docs.moralis.com/web3-data-api/solana/tutorials/get-pump-fun-token-swaps
+        
+        Args:
+            mint_address: Optional token mint address to filter by
+            limit: Number of swaps to retrieve
+            offset: Pagination offset
+            from_date: Start date for swaps
+            to_date: End date for swaps
+            
+        Returns:
+            List of swap data dictionaries
+        """
+        params = {
+            "limit": min(limit, 100),
+        }
+        
+        if from_date:
+            params["from_date"] = int(from_date.timestamp())
+        
+        if to_date:
+            params["to_date"] = int(to_date.timestamp())
+        
+        try:
+            if mint_address:
+                # Get swaps for a specific token
+                endpoint = f"/token/mainnet/{mint_address}/swaps"
+            else:
+                # Get all recent pump.fun swaps
+                endpoint = f"/token/mainnet/pumpfun/swaps"
+            
+            data = await self._request("GET", endpoint, params=params)
+            
+            if isinstance(data, list):
+                return data
+            elif isinstance(data, dict) and "result" in data:
+                return data.get("result", [])
+            elif isinstance(data, dict) and "data" in data:
+                return data.get("data", [])
+            elif isinstance(data, dict) and "swaps" in data:
+                return data.get("swaps", [])
+            else:
+                return []
+                
+        except Exception as e:
+            self.logger.error(f"Error fetching token swaps: {e}")
+            return []
     
     async def get_token_trades(
         self,
@@ -173,47 +291,15 @@ class MoralisClient:
         to_date: Optional[datetime] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Get trades/transactions for pump.fun tokens
-        
-        Args:
-            mint_address: Optional token mint address to filter by
-            limit: Number of trades to retrieve
-            offset: Pagination offset
-            from_date: Start date for trades
-            to_date: End date for trades
-            
-        Returns:
-            List of trade data dictionaries
+        Alias for get_token_swaps for backward compatibility
         """
-        params = {
-            "limit": min(limit, 100),
-            "offset": offset,
-        }
-        
-        if mint_address:
-            params["token"] = mint_address
-        
-        if from_date:
-            params["from_date"] = int(from_date.timestamp())
-        
-        if to_date:
-            params["to_date"] = int(to_date.timestamp())
-        
-        try:
-            data = await self._request("GET", "/pumpfun/trades", params=params)
-            
-            if isinstance(data, list):
-                return data
-            elif isinstance(data, dict) and "result" in data:
-                return data.get("result", [])
-            elif isinstance(data, dict) and "data" in data:
-                return data.get("data", [])
-            else:
-                return []
-                
-        except Exception as e:
-            self.logger.error(f"Error fetching trades: {e}")
-            return []
+        return await self.get_token_swaps(
+            mint_address=mint_address,
+            limit=limit,
+            offset=offset,
+            from_date=from_date,
+            to_date=to_date,
+        )
     
     async def get_new_tokens(
         self,
@@ -235,12 +321,11 @@ class MoralisClient:
         params = {
             "limit": min(limit, 100),
             "from_date": int(from_date.timestamp()),
-            "sort_by": "created_at",
-            "order": "desc",
         }
         
         try:
-            data = await self._request("GET", "/pumpfun/tokens/new", params=params)
+            endpoint = "/token/mainnet/pumpfun/new"
+            data = await self._request("GET", endpoint, params=params)
             
             if isinstance(data, list):
                 return data
@@ -248,12 +333,116 @@ class MoralisClient:
                 return data.get("result", [])
             elif isinstance(data, dict) and "data" in data:
                 return data.get("data", [])
+            elif isinstance(data, dict) and "tokens" in data:
+                return data.get("tokens", [])
             else:
                 return []
                 
         except Exception as e:
             self.logger.error(f"Error fetching new tokens: {e}")
             return []
+    
+    async def get_graduated_tokens(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get graduated pump.fun tokens
+        
+        Documentation: https://docs.moralis.com/web3-data-api/solana/tutorials/get-graduated-pump-fun-tokens
+        
+        Args:
+            limit: Number of tokens to retrieve
+            offset: Pagination offset
+            
+        Returns:
+            List of graduated token data dictionaries
+        """
+        params = {
+            "limit": min(limit, 100),
+            "offset": offset,
+        }
+        
+        try:
+            endpoint = "/token/mainnet/pumpfun/graduated"
+            data = await self._request("GET", endpoint, params=params)
+            
+            if isinstance(data, list):
+                return data
+            elif isinstance(data, dict) and "result" in data:
+                return data.get("result", [])
+            elif isinstance(data, dict) and "data" in data:
+                return data.get("data", [])
+            elif isinstance(data, dict) and "tokens" in data:
+                return data.get("tokens", [])
+            else:
+                return []
+                
+        except Exception as e:
+            self.logger.error(f"Error fetching graduated tokens: {e}")
+            return []
+    
+    async def get_bonding_tokens(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get bonding pump.fun tokens
+        
+        Documentation: https://docs.moralis.com/web3-data-api/solana/tutorials/get-bonding-pump-fun-tokens
+        
+        Args:
+            limit: Number of tokens to retrieve
+            offset: Pagination offset
+            
+        Returns:
+            List of bonding token data dictionaries
+        """
+        params = {
+            "limit": min(limit, 100),
+            "offset": offset,
+        }
+        
+        try:
+            endpoint = "/token/mainnet/pumpfun/bonding"
+            data = await self._request("GET", endpoint, params=params)
+            
+            if isinstance(data, list):
+                return data
+            elif isinstance(data, dict) and "result" in data:
+                return data.get("result", [])
+            elif isinstance(data, dict) and "data" in data:
+                return data.get("data", [])
+            elif isinstance(data, dict) and "tokens" in data:
+                return data.get("tokens", [])
+            else:
+                return []
+                
+        except Exception as e:
+            self.logger.error(f"Error fetching bonding tokens: {e}")
+            return []
+    
+    async def get_token_bonding_status(self, mint_address: str) -> Optional[Dict[str, Any]]:
+        """
+        Get bonding status for a specific pump.fun token
+        
+        Documentation: https://docs.moralis.com/web3-data-api/solana/tutorials/get-token-bonding-status
+        
+        Args:
+            mint_address: Token mint address
+            
+        Returns:
+            Token bonding status dictionary or None
+        """
+        try:
+            endpoint = f"/token/mainnet/{mint_address}/bonding-status"
+            data = await self._request("GET", endpoint)
+            return data
+        except Exception as e:
+            self.logger.error(f"Error fetching bonding status for {mint_address}: {e}")
+            return None
     
     def parse_token(self, data: Dict[str, Any]) -> Optional[TokenInfo]:
         """
