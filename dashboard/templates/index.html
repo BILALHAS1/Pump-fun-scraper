@@ -47,6 +47,39 @@
         font-size: 0.9rem;
         margin-top: 0.5rem;
       }
+      .connection-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-size: 0.9rem;
+        margin-top: 0.5rem;
+        margin-left: 0.5rem;
+      }
+      .connection-status.connected {
+        background-color: #198754;
+        color: white;
+      }
+      .connection-status.disconnected {
+        background-color: #dc3545;
+        color: white;
+      }
+      .connection-status.connecting {
+        background-color: #ffc107;
+        color: #000;
+      }
+      .status-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background-color: currentColor;
+        animation: pulse 2s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
       .coins-table {
         background: white;
         border-radius: 0.5rem;
@@ -89,6 +122,39 @@
         font-weight: 500;
         color: #198754;
       }
+      .new-coin-badge {
+        display: inline-block;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        margin-left: 0.5rem;
+        animation: newCoinGlow 2s ease-in-out infinite;
+      }
+      @keyframes newCoinGlow {
+        0%, 100% { box-shadow: 0 0 5px rgba(102, 126, 234, 0.5); }
+        50% { box-shadow: 0 0 20px rgba(102, 126, 234, 0.8); }
+      }
+      .new-coin-row {
+        animation: highlightNew 3s ease-in-out;
+      }
+      @keyframes highlightNew {
+        0% { background-color: rgba(102, 126, 234, 0.2); }
+        100% { background-color: transparent; }
+      }
+      .price-change {
+        font-size: 0.8rem;
+        margin-left: 0.5rem;
+      }
+      .price-up {
+        color: #198754;
+      }
+      .price-down {
+        color: #dc3545;
+      }
       .loading {
         text-align: center;
         padding: 3rem;
@@ -122,8 +188,14 @@
     <div class="container-main">
       <div class="header">
         <h1>Pump.fun Dashboard</h1>
-        <div class="auto-refresh-badge">
-          Auto-refresh: Every <span id="refresh-interval">5 minutes</span>
+        <div>
+          <div class="auto-refresh-badge">
+            🔴 LIVE: Updating Every <span id="refresh-interval">1 second</span>
+          </div>
+          <div class="connection-status connecting" id="connection-status">
+            <span class="status-indicator"></span>
+            <span id="connection-text">Connecting...</span>
+          </div>
         </div>
         <div class="last-updated" id="last-updated">
           Loading...
