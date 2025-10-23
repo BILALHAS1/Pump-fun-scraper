@@ -190,7 +190,7 @@
         <h1>Pump.fun Dashboard</h1>
         <div>
           <div class="auto-refresh-badge">
-            🔴 LIVE: Updating Every <span id="refresh-interval">1 second</span>
+            🔴 LIVE: Updating Every <span id="refresh-interval">{{ auto_refresh_seconds }} second{% if auto_refresh_seconds != 1 %}s{% endif %}</span>
           </div>
           <div class="connection-status connecting" id="connection-status">
             <span class="status-indicator"></span>

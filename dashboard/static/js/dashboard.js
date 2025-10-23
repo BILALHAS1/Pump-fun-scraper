@@ -1,5 +1,7 @@
 (function () {
-  const config = window.DASHBOARD_CONFIG || { autoRefreshSeconds: 1 };
+  const config = window.DASHBOARD_CONFIG || { autoRefreshSeconds: 20 };
+  const refreshSeconds = Math.max(1, Number(config.autoRefreshSeconds) || 20);
+  const refreshIntervalMs = refreshSeconds * 1000;
   
   const refreshIntervalLabel = document.getElementById("refresh-interval");
   const lastUpdatedLabel = document.getElementById("last-updated");
@@ -13,6 +15,7 @@
   let eventSource = null;
   let previousPrices = {};
   let newCoinIds = new Set();
+  let refreshTimerId = null;
 
   function formatCurrency(value, decimals = 6) {
     if (value === null || value === undefined || Number.isNaN(Number(value))) {
@@ -53,8 +56,14 @@
     }
   }
 
-  function formatTimestamp() {
-    const now = new Date();
+  function formatTimestamp(value) {
+    let date;
+    if (value) {
+      const parsedDate = new Date(value);
+      date = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+    } else {
+      date = new Date();
+    }
     const options = {
       year: "numeric",
       month: "short",
@@ -64,7 +73,7 @@
       second: "2-digit",
       hour12: true,
     };
-    return now.toLocaleString("en-US", options);
+    return date.toLocaleString("en-US", options);
   }
 
   function formatRefreshInterval(seconds) {
@@ -159,7 +168,8 @@
     noDataDiv.style.display = "none";
     coinsTable.style.display = "table";
 
-    const timestamp = formatTimestamp();
+    const datasetUpdatedAt = data.dataset_timestamp || data.scrape_timestamp;
+    const timestamp = formatTimestamp(datasetUpdatedAt);
     lastUpdatedLabel.textContent = `Last updated: ${timestamp}`;
   }
 
@@ -236,14 +246,18 @@
   }
 
   function init() {
-    const intervalText = formatRefreshInterval(config.autoRefreshSeconds);
+    const intervalText = formatRefreshInterval(refreshSeconds);
     refreshIntervalLabel.textContent = intervalText;
     
     // Use SSE for real-time updates
     connectSSE();
     
-    // Fallback: also fetch data initially in case SSE takes time to connect
+    // Always fetch immediately and then on an interval as a fallback
     fetchData();
+    if (refreshTimerId) {
+      clearInterval(refreshTimerId);
+    }
+    refreshTimerId = setInterval(fetchData, refreshIntervalMs);
   }
 
   if (document.readyState === "loading") {
@@ -256,6 +270,9 @@
   window.addEventListener("beforeunload", function() {
     if (eventSource) {
       eventSource.close();
+    }
+    if (refreshTimerId) {
+      clearInterval(refreshTimerId);
     }
   });
 })();
