@@ -108,14 +108,19 @@ async def test_endpoints():
         logger.info("TEST 4: Get token swaps")
         logger.info("="*60)
         try:
-            swaps = await client.get_token_swaps(limit=5)
-            if swaps:
-                logger.info(f"✓ Success! Retrieved {len(swaps)} swaps")
+            if test_mint and test_mint != "pump123...":
+                swaps = await client.get_token_swaps(
+                    mint_address=test_mint,
+                    limit=5,
+                )
                 if swaps:
+                    logger.info(f"✓ Success! Retrieved {len(swaps)} swaps")
                     sample = swaps[0]
                     logger.info(f"  Sample swap keys: {list(sample.keys())[:10]}")
+                else:
+                    logger.warning("⚠ No swaps returned (may be expected)")
             else:
-                logger.warning("⚠ No swaps returned (may be expected)")
+                logger.info("⊘ Skipped (no test token address available)")
         except Exception as e:
             logger.error(f"❌ Failed: {e}")
             all_passed = False
