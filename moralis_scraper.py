@@ -164,35 +164,87 @@ class MoralisScraper:
         Returns:
             Number of new trades processed
         """
+        if limit <= 0:
+            self.logger.debug("Trade fetch limit is non-positive; skipping fetch")
+            return 0
+        
         try:
-            self.logger.debug("Fetching trades from Moralis API...")
+            self.logger.debug("Fetching trades from Moralis API using token mint addresses...")
+            
+            if not self.collected_tokens:
+                self.logger.debug("No tokens collected yet; skipping trade fetch")
+                return 0
+            
+            tokens_to_process = list(self.collected_tokens.values())
+            if not tokens_to_process:
+                return 0
+            
+            if not self.moralis_client:
+                self.logger.error("Moralis client is not initialized")
+                return 0
+            
+            max_tokens = max(1, self.config.max_tokens_for_transactions)
+            tokens_to_process = tokens_to_process[:max_tokens]
+            
+            total_new_trades = 0
+            remaining_limit = limit
             
             async with self.moralis_client:
-                # Get recent trades
-                raw_trades = await self.moralis_client.get_token_trades(
-                    limit=limit,
-                )
-                
-                self.api_requests += 1
-                new_count = 0
-                
-                for raw_trade in raw_trades:
-                    transaction = self.moralis_client.parse_transaction(raw_trade)
+                for index, token in enumerate(tokens_to_process):
+                    if remaining_limit <= 0:
+                        break
                     
-                    if not transaction or not transaction.signature:
+                    tokens_remaining = len(tokens_to_process) - index
+                    per_token_limit = self.config.transactions_per_token
+                    if remaining_limit:
+                        per_token_limit = min(
+                            self.config.transactions_per_token,
+                            max(1, remaining_limit // tokens_remaining)
+                        )
+                    
+                    token_symbol = token.symbol or token.mint_address
+                    mint_address = token.mint_address
+                    self.logger.debug(
+                        "Fetching up to %s trades for token %s (%s)",
+                        per_token_limit,
+                        token_symbol,
+                        mint_address,
+                    )
+                    
+                    try:
+                        raw_trades = await self.moralis_client.get_token_trades(
+                            mint_address=mint_address,
+                            limit=per_token_limit,
+                        )
+                        self.api_requests += 1
+                    except Exception as token_error:
+                        self.logger.error(
+                            f"Trade fetch error for token {mint_address}: {token_error}"
+                        )
+                        self.api_errors += 1
                         continue
                     
-                    # Skip duplicates
-                    if transaction.signature in self._seen_transaction_signatures:
-                        continue
+                    if remaining_limit:
+                        remaining_limit = max(0, remaining_limit - len(raw_trades))
                     
-                    self.collected_transactions.append(transaction)
-                    self._seen_transaction_signatures.add(transaction.signature)
-                    new_count += 1
-                
-                self.logger.debug(f"Processed {len(raw_trades)} trades, {new_count} new")
-                return new_count
-                
+                    for raw_trade in raw_trades:
+                        transaction = self.moralis_client.parse_transaction(raw_trade)
+                        
+                        if not transaction or not transaction.signature:
+                            continue
+                        
+                        if transaction.signature in self._seen_transaction_signatures:
+                            continue
+                        
+                        self.collected_transactions.append(transaction)
+                        self._seen_transaction_signatures.add(transaction.signature)
+                        total_new_trades += 1
+            
+            self.logger.debug(
+                f"Processed trades for {len(tokens_to_process)} tokens, {total_new_trades} new"
+            )
+            return total_new_trades
+            
         except Exception as e:
             self.logger.error(f"Error fetching trades: {e}")
             self.api_errors += 1

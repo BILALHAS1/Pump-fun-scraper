@@ -238,18 +238,27 @@ class MoralisClient:
         Documentation: https://docs.moralis.com/web3-data-api/solana/tutorials/get-pump-fun-token-swaps
         
         Args:
-            mint_address: Optional token mint address to filter by
-            limit: Number of swaps to retrieve
-            offset: Pagination offset
+            mint_address: Token mint address to fetch swaps for
+            limit: Number of swaps to retrieve per request (max 100)
+            offset: Pagination offset for swaps
             from_date: Start date for swaps
             to_date: End date for swaps
             
         Returns:
             List of swap data dictionaries
         """
+        if mint_address is None or not str(mint_address).strip():
+            raise ValueError(
+                "Token mint address is required to fetch swaps. "
+                "First call 'get_pump_fun_tokens' to retrieve valid addresses."
+            )
+        
         params = {
             "limit": min(limit, 100),
         }
+        
+        if offset:
+            params["offset"] = max(0, offset)
         
         if from_date:
             params["from_date"] = int(from_date.timestamp())
@@ -257,14 +266,10 @@ class MoralisClient:
         if to_date:
             params["to_date"] = int(to_date.timestamp())
         
+        mint_address = str(mint_address).strip()
+        
         try:
-            if mint_address:
-                # Get swaps for a specific token
-                endpoint = f"/token/mainnet/{mint_address}/swaps"
-            else:
-                # Get all recent pump.fun swaps
-                endpoint = f"/token/mainnet/pumpfun/swaps"
-            
+            endpoint = f"/token/{self.NETWORK}/{mint_address}/swaps"
             data = await self._request("GET", endpoint, params=params)
             
             if isinstance(data, list):
@@ -279,7 +284,7 @@ class MoralisClient:
                 return []
                 
         except Exception as e:
-            self.logger.error(f"Error fetching token swaps: {e}")
+            self.logger.error(f"Error fetching token swaps for {mint_address}: {e}")
             return []
     
     async def get_token_trades(
@@ -291,7 +296,10 @@ class MoralisClient:
         to_date: Optional[datetime] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Alias for get_token_swaps for backward compatibility
+        Alias for get_token_swaps for backward compatibility.
+        
+        Note:
+            A valid token mint address is required.
         """
         return await self.get_token_swaps(
             mint_address=mint_address,
